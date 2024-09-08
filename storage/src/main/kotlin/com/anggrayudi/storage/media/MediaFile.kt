@@ -19,7 +19,7 @@ import androidx.documentfile.provider.DocumentFile
 import com.anggrayudi.storage.SimpleStorage
 import com.anggrayudi.storage.callback.SingleFileConflictCallback
 import com.anggrayudi.storage.extension.awaitUiResultWithPending
-import com.anggrayudi.storage.extension.closeStreamQuietly
+import com.anggrayudi.storage.extension.closeQuietly
 import com.anggrayudi.storage.extension.getString
 import com.anggrayudi.storage.extension.isRawFile
 import com.anggrayudi.storage.extension.openInputStream
@@ -30,11 +30,11 @@ import com.anggrayudi.storage.extension.startCoroutineTimer
 import com.anggrayudi.storage.extension.toDocumentFile
 import com.anggrayudi.storage.extension.toInt
 import com.anggrayudi.storage.extension.trimFileSeparator
-import com.anggrayudi.storage.file.CheckFileSize
 import com.anggrayudi.storage.file.CreateMode
 import com.anggrayudi.storage.file.DocumentFileCompat
 import com.anggrayudi.storage.file.DocumentFileCompat.removeForbiddenCharsFromFilename
 import com.anggrayudi.storage.file.FileSize
+import com.anggrayudi.storage.file.IsEnoughSpace
 import com.anggrayudi.storage.file.MimeType
 import com.anggrayudi.storage.file.child
 import com.anggrayudi.storage.file.copyToFile
@@ -44,6 +44,7 @@ import com.anggrayudi.storage.file.forceDelete
 import com.anggrayudi.storage.file.fullName
 import com.anggrayudi.storage.file.getBasePath
 import com.anggrayudi.storage.file.getStorageId
+import com.anggrayudi.storage.file.hasEnoughSpace
 import com.anggrayudi.storage.file.isEmpty
 import com.anggrayudi.storage.file.makeFile
 import com.anggrayudi.storage.file.makeFolder
@@ -51,13 +52,13 @@ import com.anggrayudi.storage.file.mimeType
 import com.anggrayudi.storage.file.moveFileTo
 import com.anggrayudi.storage.file.openOutputStream
 import com.anggrayudi.storage.file.toDocumentFile
-import com.anggrayudi.storage.file.toFileCallbackErrorCode
+import com.anggrayudi.storage.file.toSingleFileError
 import com.anggrayudi.storage.result.SingleFileErrorCode
 import com.anggrayudi.storage.result.SingleFileResult
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.channels.ProducerScope
 import kotlinx.coroutines.flow.Flow
-import kotlinx.coroutines.flow.callbackFlow
+import kotlinx.coroutines.flow.channelFlow
 import java.io.File
 import java.io.FileInputStream
 import java.io.FileOutputStream
@@ -443,9 +444,9 @@ class MediaFile @JvmOverloads constructor(
         targetFolder: DocumentFile,
         fileDescription: FileDescription? = null,
         updateInterval: Long = 500,
-        isFileSizeAllowed: CheckFileSize = defaultFileSizeChecker,
+        isFileSizeAllowed: IsEnoughSpace = defaultFileSizeChecker,
         onConflict: SingleFileConflictCallback<DocumentFile>
-    ): Flow<SingleFileResult> = callbackFlow {
+    ): Flow<SingleFileResult> = channelFlow {
         toDocumentFile()?.let {
             sendAll(
                 it.moveFileTo(
@@ -457,12 +458,12 @@ class MediaFile @JvmOverloads constructor(
                     onConflict
                 )
             )
-            return@callbackFlow
+            return@channelFlow
         }
 
         if (!enoughSpaceOnTarget(isFileSizeAllowed, targetFolder)) {
             sendAndClose(SingleFileResult.Error(SingleFileErrorCode.NO_SPACE_LEFT_ON_TARGET_PATH))
-            return@callbackFlow
+            return@channelFlow
         }
 
         val targetDirectory = if (fileDescription?.subFolder.isNullOrEmpty()) {
@@ -475,7 +476,7 @@ class MediaFile @JvmOverloads constructor(
             )
             if (directory == null) {
                 sendAndClose(SingleFileResult.Error(SingleFileErrorCode.CANNOT_CREATE_FILE_IN_TARGET))
-                return@callbackFlow
+                return@channelFlow
             } else {
                 directory
             }
@@ -490,7 +491,7 @@ class MediaFile @JvmOverloads constructor(
             handleFileConflict(targetDirectory, cleanFileName, this, onConflict)
         if (conflictResolution == SingleFileConflictCallback.ConflictResolution.SKIP) {
             close()
-            return@callbackFlow
+            return@channelFlow
         }
 
         try {
@@ -500,7 +501,7 @@ class MediaFile @JvmOverloads constructor(
             )
             if (targetFile == null) {
                 close()
-                return@callbackFlow
+                return@channelFlow
             }
             createFileStreams(targetFile, this) { inputStream, outputStream ->
                 copyFileStream(inputStream, outputStream, targetFile, updateInterval, true, this)
@@ -508,7 +509,7 @@ class MediaFile @JvmOverloads constructor(
         } catch (e: SecurityException) {
             handleSecurityException(e, this)
         } catch (e: Exception) {
-            send(SingleFileResult.Error(e.toFileCallbackErrorCode()))
+            trySend(e.toSingleFileError())
         }
         close()
     }
@@ -518,43 +519,43 @@ class MediaFile @JvmOverloads constructor(
         targetFolder: DocumentFile,
         fileDescription: FileDescription? = null,
         updateInterval: Long = 500,
-        isFileSizeAllowed: CheckFileSize = defaultFileSizeChecker,
+        isFileSizeAllowed: IsEnoughSpace = defaultFileSizeChecker,
         onConflict: SingleFileConflictCallback<DocumentFile>
-    ): Flow<SingleFileResult> = callbackFlow {
+    ): Flow<SingleFileResult> = channelFlow {
+        if (!enoughSpaceOnTarget(isFileSizeAllowed, targetFolder)) {
+            sendAndClose(SingleFileResult.Error(SingleFileErrorCode.NO_SPACE_LEFT_ON_TARGET_PATH))
+            return@channelFlow
+        }
+
         toDocumentFile()?.let { documentFile ->
             sendAll(
                 documentFile.copyToFolder(
-                    context,
-                    targetFolder,
-                    fileDescription,
-                    updateInterval,
-                    isFileSizeAllowed,
-                    onConflict
+                    context = context,
+                    targetFolder = targetFolder,
+                    fileDescription = fileDescription,
+                    updateInterval = updateInterval,
+                    isFileSizeAllowed = null,
+                    onConflict = onConflict
                 )
             )
             close()
-            return@callbackFlow
-        }
-
-        if (!enoughSpaceOnTarget(isFileSizeAllowed, targetFolder)) {
-            sendAndClose(SingleFileResult.Error(SingleFileErrorCode.NO_SPACE_LEFT_ON_TARGET_PATH))
-            return@callbackFlow
+            return@channelFlow
         }
 
         val targetDirectory = if (fileDescription?.subFolder.isNullOrEmpty()) {
             targetFolder
         } else {
-            val directory = targetFolder.makeFolder(
-                context,
-                fileDescription?.subFolder.orEmpty(),
-                CreateMode.REUSE
+            targetFolder.makeFolder(
+                context = context,
+                name = fileDescription?.subFolder.orEmpty(),
+                mode = CreateMode.REUSE
             )
-            if (directory == null) {
-                sendAndClose(SingleFileResult.Error(SingleFileErrorCode.CANNOT_CREATE_FILE_IN_TARGET))
-                return@callbackFlow
-            } else {
-                directory
-            }
+                .also {
+                    if (it == null) {
+                        sendAndClose(SingleFileResult.Error(SingleFileErrorCode.CANNOT_CREATE_FILE_IN_TARGET))
+                        return@channelFlow
+                    }
+                }!!
         }
 
         val cleanFileName = MimeType.getFullFileName(
@@ -566,7 +567,7 @@ class MediaFile @JvmOverloads constructor(
             handleFileConflict(targetDirectory, cleanFileName, this, onConflict)
         if (conflictResolution == SingleFileConflictCallback.ConflictResolution.SKIP) {
             close()
-            return@callbackFlow
+            return@channelFlow
         }
 
         try {
@@ -574,17 +575,19 @@ class MediaFile @JvmOverloads constructor(
                 targetDirectory, cleanFileName, fileDescription?.mimeType ?: type,
                 conflictResolution.toCreateMode(), this
             )
-            if (targetFile == null) {
-                close()
-                return@callbackFlow
-            }
+                .also {
+                    if (it == null) {
+                        close()
+                        return@channelFlow
+                    }
+                }!!
             createFileStreams(targetFile, this) { inputStream, outputStream ->
                 copyFileStream(inputStream, outputStream, targetFile, updateInterval, false, this)
             }
         } catch (e: SecurityException) {
             handleSecurityException(e, this)
         } catch (e: Exception) {
-            send(SingleFileResult.Error(e.toFileCallbackErrorCode()))
+            trySend(e.toSingleFileError())
         }
         close()
     }
@@ -593,25 +596,28 @@ class MediaFile @JvmOverloads constructor(
     fun copyToFile(
         targetFile: DocumentFile,
         updateInterval: Long = 500,
-        isFileSizeAllowed: CheckFileSize = defaultFileSizeChecker,
+        isEnoughSpace: IsEnoughSpace? = defaultFileSizeChecker,
         deleteOnSuccess: Boolean
-    ): Flow<SingleFileResult> = callbackFlow {
+    ): Flow<SingleFileResult> = channelFlow {
+
+        // Check space
+        isEnoughSpace?.let {
+            if (!enoughSpaceOnTarget(it, targetFile)) {
+                sendAndClose(SingleFileResult.Error(SingleFileErrorCode.NO_SPACE_LEFT_ON_TARGET_PATH))
+                return@channelFlow
+            }
+        }
+
         toDocumentFile()?.let { documentFile ->
             documentFile.copyToFile(
                 context = context,
                 targetFile = targetFile,
                 updateInterval = updateInterval,
                 scope = this,
-                isFileSizeAllowed = isFileSizeAllowed,
                 deleteSourceFileOnSuccess = deleteOnSuccess
             )
             close()
-            return@callbackFlow
-        }
-
-        if (!enoughSpaceOnTarget(isFileSizeAllowed, targetFile)) {
-            sendAndClose(SingleFileResult.Error(SingleFileErrorCode.NO_SPACE_LEFT_ON_TARGET_PATH))
-            return@callbackFlow
+            return@channelFlow
         }
 
         try {
@@ -621,11 +627,14 @@ class MediaFile @JvmOverloads constructor(
         } catch (e: SecurityException) {
             handleSecurityException(e, this)
         } catch (e: Exception) {
-            send(SingleFileResult.Error(e.toFileCallbackErrorCode()))
+            send(e.toSingleFileError())
         } finally {
             close()
         }
     }
+
+    private fun enoughSpaceOnTarget(isEnoughSpace: IsEnoughSpace, target: DocumentFile): Boolean =
+        target.hasEnoughSpace(context, length, isEnoughSpace)
 
     private fun createTargetFile(
         targetDirectory: DocumentFile,
@@ -655,22 +664,10 @@ class MediaFile @JvmOverloads constructor(
         } catch (e: SecurityException) {
             handleSecurityException(e, scope)
         } catch (e: Exception) {
-            scope.trySend(SingleFileResult.Error(e.toFileCallbackErrorCode()))
+            scope.trySend(e.toSingleFileError())
         }
         return null
     }
-
-    private fun enoughSpaceOnTarget(
-        isFileSizeAllowed: CheckFileSize,
-        target: DocumentFile
-    ): Boolean =
-        isFileSizeAllowed(
-            DocumentFileCompat.getFreeSpace(
-                context,
-                target.getStorageId(context)
-            ),
-            length
-        )
 
     private inline fun createFileStreams(
         targetFile: DocumentFile,
@@ -686,7 +683,7 @@ class MediaFile @JvmOverloads constructor(
         val inputStream = openInputStream()
         if (inputStream == null) {
             scope.trySend(SingleFileResult.Error(SingleFileErrorCode.SOURCE_FILE_NOT_FOUND))
-            outputStream.closeStreamQuietly()
+            outputStream.closeQuietly()
             return
         }
 
@@ -734,8 +731,8 @@ class MediaFile @JvmOverloads constructor(
             scope.trySend(SingleFileResult.Completed.DocumentFile(targetFile))
         } finally {
             timer?.cancel()
-            inputStream.closeStreamQuietly()
-            outputStream.closeStreamQuietly()
+            inputStream.closeQuietly()
+            outputStream.closeQuietly()
         }
     }
 

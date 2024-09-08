@@ -18,7 +18,7 @@ import java.util.zip.ZipOutputStream
 /**
  * Closing stream safely
  */
-fun OutputStream?.closeStreamQuietly() {
+fun OutputStream?.closeQuietly() {
     try {
         this?.close()
     } catch (e: IOException) {
@@ -29,7 +29,7 @@ fun OutputStream?.closeStreamQuietly() {
 /**
  * Closing stream safely
  */
-fun InputStream?.closeStreamQuietly() {
+fun InputStream?.closeQuietly() {
     try {
         this?.close()
     } catch (e: IOException) {
@@ -40,7 +40,7 @@ fun InputStream?.closeStreamQuietly() {
 /**
  * Closing stream safely
  */
-fun Reader?.closeStreamQuietly() {
+fun Reader?.closeQuietly() {
     try {
         this?.close()
     } catch (e: IOException) {

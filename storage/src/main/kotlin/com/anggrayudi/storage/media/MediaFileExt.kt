@@ -6,7 +6,7 @@ import android.content.Context
 import androidx.annotation.WorkerThread
 import androidx.documentfile.provider.DocumentFile
 import com.anggrayudi.storage.extension.closeEntryQuietly
-import com.anggrayudi.storage.extension.closeStreamQuietly
+import com.anggrayudi.storage.extension.closeQuietly
 import com.anggrayudi.storage.extension.sendAndClose
 import com.anggrayudi.storage.extension.startCoroutineTimer
 import com.anggrayudi.storage.file.CreateMode
@@ -24,7 +24,7 @@ import com.anggrayudi.storage.result.ZipDecompressionErrorCode
 import com.anggrayudi.storage.result.ZipDecompressionResult
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.Flow
-import kotlinx.coroutines.flow.callbackFlow
+import kotlinx.coroutines.flow.channelFlow
 import java.io.FileNotFoundException
 import java.io.IOException
 import java.io.InterruptedIOException
@@ -43,7 +43,7 @@ fun List<MediaFile>.compressToZip(
     targetZipFile: DocumentFile,
     deleteSourceWhenComplete: Boolean = false,
     updateInterval: Long = 500,
-): Flow<ZipCompressionResult> = callbackFlow {
+): Flow<ZipCompressionResult> = channelFlow {
     send(ZipCompressionResult.CountingFiles)
     val entryFiles = distinctBy { it.uri }.filter { !it.isEmpty }
     if (entryFiles.isEmpty()) {
@@ -53,7 +53,7 @@ fun List<MediaFile>.compressToZip(
                 "No entry files found"
             )
         )
-        return@callbackFlow
+        return@channelFlow
     }
 
     var zipFile: DocumentFile? = targetZipFile
@@ -68,7 +68,7 @@ fun List<MediaFile>.compressToZip(
                 "Cannot create ZIP file in target"
             )
         )
-        return@callbackFlow
+        return@channelFlow
     }
     if (!zipFile.isWritable(context)) {
         sendAndClose(
@@ -77,7 +77,7 @@ fun List<MediaFile>.compressToZip(
                 "Destination ZIP file is not writable"
             )
         )
-        return@callbackFlow
+        return@channelFlow
     }
 
     var success = false
@@ -141,7 +141,7 @@ fun List<MediaFile>.compressToZip(
     } finally {
         timer?.cancel()
         zos.closeEntryQuietly()
-        zos.closeStreamQuietly()
+        zos.closeQuietly()
     }
     if (success) {
         if (deleteSourceWhenComplete) {
@@ -168,7 +168,7 @@ fun MediaFile.decompressZip(
     context: Context,
     targetFolder: DocumentFile,
     updateInterval: Long = 500,
-): Flow<ZipDecompressionResult> = callbackFlow {
+): Flow<ZipDecompressionResult> = channelFlow {
     send(ZipDecompressionResult.Validating)
     if (isEmpty) {
         sendAndClose(
@@ -177,7 +177,7 @@ fun MediaFile.decompressZip(
                 "No zip file found"
             )
         )
-        return@callbackFlow
+        return@channelFlow
     }
     if (mimeType != MimeType.ZIP) {
         sendAndClose(
@@ -186,7 +186,7 @@ fun MediaFile.decompressZip(
                 "Not a ZIP file"
             )
         )
-        return@callbackFlow
+        return@channelFlow
     }
 
     var destFolder: DocumentFile? = targetFolder
@@ -200,7 +200,7 @@ fun MediaFile.decompressZip(
                 "Destination folder is not writable"
             )
         )
-        return@callbackFlow
+        return@channelFlow
     }
 
     var success = false
@@ -306,7 +306,7 @@ fun MediaFile.decompressZip(
     } finally {
         timer?.cancel()
         zis.closeEntryQuietly()
-        zis.closeStreamQuietly()
+        zis.closeQuietly()
     }
     if (success) {
         send(
