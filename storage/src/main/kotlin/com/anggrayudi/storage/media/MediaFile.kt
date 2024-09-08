@@ -39,7 +39,7 @@ import com.anggrayudi.storage.file.MimeType
 import com.anggrayudi.storage.file.child
 import com.anggrayudi.storage.file.copyToFile
 import com.anggrayudi.storage.file.copyToFolder
-import com.anggrayudi.storage.file.defaultFileSizeChecker
+import com.anggrayudi.storage.file.isEnoughSpaceDefault
 import com.anggrayudi.storage.file.forceDelete
 import com.anggrayudi.storage.file.fullName
 import com.anggrayudi.storage.file.getBasePath
@@ -444,7 +444,7 @@ class MediaFile @JvmOverloads constructor(
         targetFolder: DocumentFile,
         fileDescription: FileDescription? = null,
         updateInterval: Long = 500,
-        isFileSizeAllowed: IsEnoughSpace = defaultFileSizeChecker,
+        isFileSizeAllowed: IsEnoughSpace = isEnoughSpaceDefault,
         onConflict: SingleFileConflictCallback<DocumentFile>
     ): Flow<SingleFileResult> = channelFlow {
         toDocumentFile()?.let {
@@ -519,7 +519,7 @@ class MediaFile @JvmOverloads constructor(
         targetFolder: DocumentFile,
         fileDescription: FileDescription? = null,
         updateInterval: Long = 500,
-        isFileSizeAllowed: IsEnoughSpace = defaultFileSizeChecker,
+        isFileSizeAllowed: IsEnoughSpace = isEnoughSpaceDefault,
         onConflict: SingleFileConflictCallback<DocumentFile>
     ): Flow<SingleFileResult> = channelFlow {
         if (!enoughSpaceOnTarget(isFileSizeAllowed, targetFolder)) {
@@ -596,7 +596,7 @@ class MediaFile @JvmOverloads constructor(
     fun copyToFile(
         targetFile: DocumentFile,
         updateInterval: Long = 500,
-        isEnoughSpace: IsEnoughSpace? = defaultFileSizeChecker,
+        isEnoughSpace: IsEnoughSpace? = isEnoughSpaceDefault,
         deleteOnSuccess: Boolean
     ): Flow<SingleFileResult> = channelFlow {
 

@@ -80,8 +80,8 @@ import java.util.zip.ZipOutputStream
 
 typealias IsEnoughSpace = (freeSpace: Long, fileSize: Long) -> Boolean
 
-internal val defaultFileSizeChecker: IsEnoughSpace =
-    { freeSpace, fileSize -> fileSize * FileSize.MB <= freeSpace }
+internal val isEnoughSpaceDefault: IsEnoughSpace =
+    { freeSpace, fileSize -> fileSize <= freeSpace }
 
 internal fun DocumentFile.hasEnoughSpace(
     context: Context,
@@ -1357,7 +1357,7 @@ fun List<DocumentFile>.compressToZip(
     targetZipFile: DocumentFile,
     deleteSourceWhenComplete: Boolean = false,
     updateInterval: Long = 500,
-    isFileSizeAllowed: IsEnoughSpace = defaultFileSizeChecker,
+    isFileSizeAllowed: IsEnoughSpace = isEnoughSpaceDefault,
 ): Flow<ZipCompressionResult> = channelFlow {
     send(ZipCompressionResult.CountingFiles)
     val treeFiles = ArrayList<DocumentFile>(size)
@@ -1579,7 +1579,7 @@ fun DocumentFile.decompressZip(
     context: Context,
     targetFolder: DocumentFile,
     updateInterval: Long = 500,
-    isFileSizeAllowed: IsEnoughSpace = defaultFileSizeChecker,
+    isFileSizeAllowed: IsEnoughSpace = isEnoughSpaceDefault,
     onConflict: SingleFileConflictCallback<DocumentFile>? = null
 ): Flow<ZipDecompressionResult> = channelFlow {
     send(ZipDecompressionResult.Validating)
@@ -1763,7 +1763,7 @@ fun List<DocumentFile>.moveTo(
     targetParentFolder: DocumentFile,
     skipEmptyFiles: Boolean = true,
     updateInterval: Long = 500,
-    isFileSizeAllowed: IsEnoughSpace = defaultFileSizeChecker,
+    isFileSizeAllowed: IsEnoughSpace = isEnoughSpaceDefault,
     onConflict: MultipleFilesConflictCallback
 ): Flow<MultipleFilesResult> {
     return copyTo(
@@ -1783,7 +1783,7 @@ fun List<DocumentFile>.copyTo(
     targetParentFolder: DocumentFile,
     skipEmptyFiles: Boolean = true,
     updateInterval: Long = 500,
-    isFileSizeAllowed: IsEnoughSpace = defaultFileSizeChecker,
+    isFileSizeAllowed: IsEnoughSpace = isEnoughSpaceDefault,
     onConflict: MultipleFilesConflictCallback
 ): Flow<MultipleFilesResult> {
     return copyTo(
@@ -1804,7 +1804,7 @@ private fun List<DocumentFile>.copyTo(
     skipEmptyFiles: Boolean = true,
     deleteSourceWhenComplete: Boolean,
     updateInterval: Long = 500,
-    isFileSizeAllowed: IsEnoughSpace = defaultFileSizeChecker,
+    isFileSizeAllowed: IsEnoughSpace = isEnoughSpaceDefault,
     onConflict: MultipleFilesConflictCallback
 ): Flow<MultipleFilesResult> = channelFlow {
     send(MultipleFilesResult.Validating)
@@ -2317,7 +2317,7 @@ fun DocumentFile.moveFolderTo(
     skipEmptyFiles: Boolean = true,
     newFolderNameInTargetPath: String? = null,
     updateInterval: Long = 500,
-    isFileSizeAllowed: IsEnoughSpace = defaultFileSizeChecker,
+    isFileSizeAllowed: IsEnoughSpace = isEnoughSpaceDefault,
     onConflict: SingleFolderConflictCallback
 ): Flow<SingleFolderResult> {
     return copyFolderTo(
@@ -2339,7 +2339,7 @@ fun DocumentFile.copyFolderTo(
     skipEmptyFiles: Boolean = true,
     newFolderNameInTargetPath: String? = null,
     updateInterval: Long = 500,
-    isFileSizeAllowed: IsEnoughSpace = defaultFileSizeChecker,
+    isFileSizeAllowed: IsEnoughSpace = isEnoughSpaceDefault,
     onConflict: SingleFolderConflictCallback
 ): Flow<SingleFolderResult> {
     return copyFolderTo(
@@ -2365,7 +2365,7 @@ private fun DocumentFile.copyFolderTo(
     newFolderNameInTargetPath: String? = null,
     deleteSourceWhenComplete: Boolean,
     updateInterval: Long = 500,
-    isFileSizeAllowed: IsEnoughSpace = defaultFileSizeChecker,
+    isFileSizeAllowed: IsEnoughSpace = isEnoughSpaceDefault,
     onConflict: SingleFolderConflictCallback
 ): Flow<SingleFolderResult> = channelFlow {
     val writableTargetParentFolder =
@@ -2744,7 +2744,7 @@ fun DocumentFile.copyToFolder(
     targetFolder: File,
     fileDescription: FileDescription? = null,
     updateInterval: Long = 500,
-    isFileSizeAllowed: IsEnoughSpace = defaultFileSizeChecker,
+    isFileSizeAllowed: IsEnoughSpace = isEnoughSpaceDefault,
     onConflict: SingleFileConflictCallback<DocumentFile>
 ): Flow<SingleFileResult> {
     return copyToFolder(
@@ -2767,7 +2767,7 @@ fun DocumentFile.copyToFolder(
     targetFolderAbsolutePath: String,
     fileDescription: FileDescription? = null,
     updateInterval: Long = 500,
-    isFileSizeAllowed: IsEnoughSpace = defaultFileSizeChecker,
+    isFileSizeAllowed: IsEnoughSpace = isEnoughSpaceDefault,
     onConflict: SingleFileConflictCallback<DocumentFile>
 ): Flow<SingleFileResult> = channelFlow {
     val targetFolder = DocumentFileCompat.mkdirs(context, targetFolderAbsolutePath, true)
@@ -2796,7 +2796,7 @@ fun DocumentFile.copyToFolder(
     targetFolder: DocumentFile,
     fileDescription: FileDescription? = null,
     updateInterval: Long = 500,
-    isFileSizeAllowed: IsEnoughSpace? = defaultFileSizeChecker,
+    isFileSizeAllowed: IsEnoughSpace? = isEnoughSpaceDefault,
     onConflict: SingleFileConflictCallback<DocumentFile>
 ): Flow<SingleFileResult> = channelFlow {
     if (fileDescription?.subFolder.isNullOrEmpty()) {
@@ -3097,7 +3097,7 @@ fun DocumentFile.moveFileTo(
     targetFolder: File,
     fileDescription: FileDescription? = null,
     updateInterval: Long = 500,
-    isFileSizeAllowed: IsEnoughSpace = defaultFileSizeChecker,
+    isFileSizeAllowed: IsEnoughSpace = isEnoughSpaceDefault,
     onConflict: SingleFileConflictCallback<DocumentFile>
 ): Flow<SingleFileResult> {
     return moveFileTo(
@@ -3120,7 +3120,7 @@ fun DocumentFile.moveFileTo(
     targetFolderAbsolutePath: String,
     fileDescription: FileDescription? = null,
     updateInterval: Long = 500,
-    isFileSizeAllowed: IsEnoughSpace = defaultFileSizeChecker,
+    isFileSizeAllowed: IsEnoughSpace = isEnoughSpaceDefault,
     onConflict: SingleFileConflictCallback<DocumentFile>
 ): Flow<SingleFileResult> = channelFlow {
     val targetFolder = DocumentFileCompat.mkdirs(context, targetFolderAbsolutePath, true)
@@ -3149,7 +3149,7 @@ fun DocumentFile.moveFileTo(
     targetFolder: DocumentFile,
     fileDescription: FileDescription? = null,
     updateInterval: Long = 500,
-    isFileSizeAllowed: IsEnoughSpace = defaultFileSizeChecker,
+    isFileSizeAllowed: IsEnoughSpace = isEnoughSpaceDefault,
     onConflict: SingleFileConflictCallback<DocumentFile>
 ): Flow<SingleFileResult> = channelFlow {
     if (fileDescription?.subFolder.isNullOrEmpty()) {
@@ -3409,7 +3409,7 @@ fun DocumentFile.copyFileToDownloadMedia(
     fileDescription: FileDescription,
     mode: CreateMode = CreateMode.CREATE_NEW,
     updateInterval: Long = 500,
-    isFileSizeAllowed: IsEnoughSpace = defaultFileSizeChecker,
+    isFileSizeAllowed: IsEnoughSpace = isEnoughSpaceDefault,
     onConflict: SingleFileConflictCallback<DocumentFile>,
 ): Flow<SingleFileResult> = channelFlow {
     copyFileToMedia(
@@ -3433,7 +3433,7 @@ fun DocumentFile.copyFileToPictureMedia(
     fileDescription: FileDescription,
     mode: CreateMode = CreateMode.CREATE_NEW,
     updateInterval: Long = 500,
-    isFileSizeAllowed: IsEnoughSpace = defaultFileSizeChecker,
+    isFileSizeAllowed: IsEnoughSpace = isEnoughSpaceDefault,
     onConflict: SingleFileConflictCallback<DocumentFile>,
 ): Flow<SingleFileResult> = channelFlow {
     copyFileToMedia(
@@ -3457,7 +3457,7 @@ fun DocumentFile.moveFileToDownloadMedia(
     fileDescription: FileDescription,
     mode: CreateMode = CreateMode.CREATE_NEW,
     updateInterval: Long = 500,
-    isFileSizeAllowed: IsEnoughSpace = defaultFileSizeChecker,
+    isFileSizeAllowed: IsEnoughSpace = isEnoughSpaceDefault,
     onConflict: SingleFileConflictCallback<DocumentFile>
 ): Flow<SingleFileResult> = channelFlow {
     copyFileToMedia(
@@ -3481,7 +3481,7 @@ fun DocumentFile.moveFileToPictureMedia(
     fileDescription: FileDescription,
     mode: CreateMode = CreateMode.CREATE_NEW,
     updateInterval: Long = 500,
-    isFileSizeAllowed: IsEnoughSpace = defaultFileSizeChecker,
+    isFileSizeAllowed: IsEnoughSpace = isEnoughSpaceDefault,
     onConflict: SingleFileConflictCallback<DocumentFile>
 ): Flow<SingleFileResult> = channelFlow {
     copyFileToMedia(
@@ -3506,7 +3506,7 @@ fun DocumentFile.moveFileTo(
     context: Context,
     targetFile: MediaFile,
     updateInterval: Long = 500,
-    isFileSizeAllowed: IsEnoughSpace = defaultFileSizeChecker,
+    isFileSizeAllowed: IsEnoughSpace = isEnoughSpaceDefault,
 ): Flow<SingleFileResult> = channelFlow {
     copyToFolder(context, targetFile, true, updateInterval, this, isFileSizeAllowed)
     close()
@@ -3520,7 +3520,7 @@ fun DocumentFile.copyToFolder(
     context: Context,
     targetFile: MediaFile,
     updateInterval: Long = 500,
-    isFileSizeAllowed: IsEnoughSpace = defaultFileSizeChecker,
+    isFileSizeAllowed: IsEnoughSpace = isEnoughSpaceDefault,
 ): Flow<SingleFileResult> = channelFlow {
     copyToFolder(
         context = context,
