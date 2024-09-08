@@ -29,7 +29,7 @@ import com.anggrayudi.storage.callback.SingleFolderConflictCallback
 import com.anggrayudi.storage.extension.launchOnUiThread
 import com.anggrayudi.storage.file.baseName
 import com.anggrayudi.storage.file.changeName
-import com.anggrayudi.storage.file.copyFileTo
+import com.anggrayudi.storage.file.copyToFolder
 import com.anggrayudi.storage.file.copyFolderTo
 import com.anggrayudi.storage.file.copyTo
 import com.anggrayudi.storage.file.fullName
@@ -639,7 +639,7 @@ class MainActivity : AppCompatActivity() {
             val targetFolder = binding.layoutCopyFileTargetFolder.tvFilePath.tag as DocumentFile
             Toast.makeText(this, "Copying...", Toast.LENGTH_SHORT).show()
             ioScope.launch {
-                file.copyFileTo(applicationContext, targetFolder, onConflict = createFileCallback())
+                file.copyToFolder(applicationContext, targetFolder, onConflict = createFileCallback())
                     .onCompletion {
                         if (it is CancellationException) {
                             Timber.d("File copy is aborted")

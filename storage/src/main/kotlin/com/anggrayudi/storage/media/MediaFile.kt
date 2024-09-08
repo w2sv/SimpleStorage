@@ -37,7 +37,8 @@ import com.anggrayudi.storage.file.DocumentFileCompat.removeForbiddenCharsFromFi
 import com.anggrayudi.storage.file.FileSize
 import com.anggrayudi.storage.file.MimeType
 import com.anggrayudi.storage.file.child
-import com.anggrayudi.storage.file.copyFileTo
+import com.anggrayudi.storage.file.copyToFile
+import com.anggrayudi.storage.file.copyToFolder
 import com.anggrayudi.storage.file.defaultFileSizeChecker
 import com.anggrayudi.storage.file.forceDelete
 import com.anggrayudi.storage.file.fullName
@@ -90,7 +91,11 @@ class MediaFile @JvmOverloads constructor(
         context: Context,
         rawFile: File,
         onWriteAccessDenied: OnWriteAccessDenied? = null
-    ) : this(context, Uri.fromFile(rawFile))
+    ) : this(
+        context = context,
+        uri = Uri.fromFile(rawFile),
+        onWriteAccessDenied = onWriteAccessDenied
+    )
 
     private val context = context.applicationContext
 
@@ -203,12 +208,18 @@ class MediaFile @JvmOverloads constructor(
     @Deprecated("Accessing files with java.io.File only works on app private directory since Android 10.")
     fun toRawFile() = if (isRawFile) uri.path?.let { File(it) } else null
 
-    fun toDocumentFile() = absolutePath.let {
-        if (it.isEmpty()) null else DocumentFileCompat.fromFullPath(
-            context,
-            it
-        )
-    }
+    fun toDocumentFile(): DocumentFile? =
+        absolutePath
+            .let {
+                if (it.isEmpty()) {
+                    null
+                } else {
+                    DocumentFileCompat.fromFullPath(
+                        context,
+                        it
+                    )
+                }
+            }
 
     @Suppress("DEPRECATION")
     val absolutePath: String
@@ -449,13 +460,7 @@ class MediaFile @JvmOverloads constructor(
             return@callbackFlow
         }
 
-        if (!isFileSizeAllowed(
-                DocumentFileCompat.getFreeSpace(
-                    context,
-                    targetFolder.getStorageId(context)
-                ), length
-            )
-        ) {
+        if (!enoughSpaceOnTarget(isFileSizeAllowed, targetFolder)) {
             sendAndClose(SingleFileResult.Error(SingleFileErrorCode.NO_SPACE_LEFT_ON_TARGET_PATH))
             return@callbackFlow
         }
@@ -509,17 +514,16 @@ class MediaFile @JvmOverloads constructor(
     }
 
     @WorkerThread
-    fun copyTo(
+    fun copyToFolder(
         targetFolder: DocumentFile,
         fileDescription: FileDescription? = null,
         updateInterval: Long = 500,
         isFileSizeAllowed: CheckFileSize = defaultFileSizeChecker,
         onConflict: SingleFileConflictCallback<DocumentFile>
     ): Flow<SingleFileResult> = callbackFlow {
-        val sourceFile = toDocumentFile()
-        if (sourceFile != null) {
+        toDocumentFile()?.let { documentFile ->
             sendAll(
-                sourceFile.copyFileTo(
+                documentFile.copyToFolder(
                     context,
                     targetFolder,
                     fileDescription,
@@ -528,16 +532,11 @@ class MediaFile @JvmOverloads constructor(
                     onConflict
                 )
             )
+            close()
             return@callbackFlow
         }
 
-        if (!isFileSizeAllowed(
-                DocumentFileCompat.getFreeSpace(
-                    context,
-                    targetFolder.getStorageId(context)
-                ), length
-            )
-        ) {
+        if (!enoughSpaceOnTarget(isFileSizeAllowed, targetFolder)) {
             sendAndClose(SingleFileResult.Error(SingleFileErrorCode.NO_SPACE_LEFT_ON_TARGET_PATH))
             return@callbackFlow
         }
@@ -590,6 +589,44 @@ class MediaFile @JvmOverloads constructor(
         close()
     }
 
+    @WorkerThread
+    fun copyToFile(
+        targetFile: DocumentFile,
+        updateInterval: Long = 500,
+        isFileSizeAllowed: CheckFileSize = defaultFileSizeChecker,
+        deleteOnSuccess: Boolean
+    ): Flow<SingleFileResult> = callbackFlow {
+        toDocumentFile()?.let { documentFile ->
+            documentFile.copyToFile(
+                context = context,
+                targetFile = targetFile,
+                updateInterval = updateInterval,
+                scope = this,
+                isFileSizeAllowed = isFileSizeAllowed,
+                deleteSourceFileOnSuccess = deleteOnSuccess
+            )
+            close()
+            return@callbackFlow
+        }
+
+        if (!enoughSpaceOnTarget(isFileSizeAllowed, targetFile)) {
+            sendAndClose(SingleFileResult.Error(SingleFileErrorCode.NO_SPACE_LEFT_ON_TARGET_PATH))
+            return@callbackFlow
+        }
+
+        try {
+            createFileStreams(targetFile, this) { inputStream, outputStream ->
+                copyFileStream(inputStream, outputStream, targetFile, updateInterval, false, this)
+            }
+        } catch (e: SecurityException) {
+            handleSecurityException(e, this)
+        } catch (e: Exception) {
+            send(SingleFileResult.Error(e.toFileCallbackErrorCode()))
+        } finally {
+            close()
+        }
+    }
+
     private fun createTargetFile(
         targetDirectory: DocumentFile,
         fileName: String,
@@ -622,6 +659,18 @@ class MediaFile @JvmOverloads constructor(
         }
         return null
     }
+
+    private fun enoughSpaceOnTarget(
+        isFileSizeAllowed: CheckFileSize,
+        target: DocumentFile
+    ): Boolean =
+        isFileSizeAllowed(
+            DocumentFileCompat.getFreeSpace(
+                context,
+                target.getStorageId(context)
+            ),
+            length
+        )
 
     private inline fun createFileStreams(
         targetFile: DocumentFile,
