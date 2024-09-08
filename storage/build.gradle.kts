@@ -36,7 +36,7 @@ android {
         }
     }
     buildFeatures {
-        buildConfig = false
+        buildConfig = true
     }
     packaging {
         resources {
