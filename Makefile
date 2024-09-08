@@ -8,4 +8,7 @@ publish:
 	@echo "###### Pushing latest changes ######"
 	@git status;git add .;git commit -m '$(VERSION)';git push origin
 	@echo "###### Creating release ######"
-	@gh release create $(VERSION) --generate-notes
+	@$(MAKE) create-gh-release
+
+create-gh-release:
+	@gh release create $(VERSION) --generate-notes --repo w2sv/SimpleStorage
