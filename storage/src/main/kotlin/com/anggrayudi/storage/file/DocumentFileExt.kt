@@ -3076,7 +3076,7 @@ private fun DocumentFile.copyFileStream(
         if (targetFile is FileWrapper.Media) {
             targetFile.mediaFile.length = srcSize
         }
-        scope.trySend(SingleFileResult.Completed.get(targetFile))
+        scope.trySend(SingleFileResult.Completed(targetFile))
         if (deleteSourceFileWhenComplete) {
             delete().also { scope.trySend(SingleFileResult.SourceFileDeletionResult.get(it)) }
         }
@@ -3222,7 +3222,7 @@ private fun DocumentFile.moveFileTo(
             cleanFileName,
             fileConflictResolution
         )?.let {
-            scope.trySend(SingleFileResult.Completed.DocumentFile(DocumentFile.fromFile(it)))
+            scope.trySend(SingleFileResult.Completed(FileWrapper.Document.fromFile(it)))
             return
         }
     }
@@ -3237,13 +3237,7 @@ private fun DocumentFile.moveFileTo(
         writableTargetFolder.toRawFile(context)?.let { destinationFolder ->
             sourceFile.moveTo(context, destinationFolder, cleanFileName, fileConflictResolution)
                 ?.let {
-                    scope.trySend(
-                        SingleFileResult.Completed.DocumentFile(
-                            DocumentFile.fromFile(
-                                it
-                            )
-                        )
-                    )
+                    scope.trySend(SingleFileResult.Completed(FileWrapper.Document.fromFile(it)))
                     return
                 }
         }
@@ -3266,7 +3260,7 @@ private fun DocumentFile.moveFileTo(
                 val newFile = context.fromTreeUri(movedFileUri)
                 if (newFile != null && newFile.isFile) {
                     if (newFilenameInTargetPath != null) newFile.renameTo(cleanFileName)
-                    scope.trySend(SingleFileResult.Completed.DocumentFile(newFile))
+                    scope.trySend(SingleFileResult.Completed(FileWrapper.Document(newFile)))
                 } else {
                     scope.trySend(SingleFileResult.Error(SingleFileErrorCode.TARGET_FILE_NOT_FOUND))
                 }

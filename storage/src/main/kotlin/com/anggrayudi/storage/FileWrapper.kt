@@ -14,6 +14,7 @@ import com.anggrayudi.storage.file.mimeTypeByFileName
 import com.anggrayudi.storage.file.openInputStream
 import com.anggrayudi.storage.file.openOutputStream
 import com.anggrayudi.storage.media.MediaFile
+import java.io.File
 import java.io.InputStream
 import java.io.OutputStream
 
@@ -123,5 +124,14 @@ interface FileWrapper {
             documentFile.openInputStream(context)
 
         override fun delete(): Boolean = documentFile.delete()
+
+        companion object {
+
+            /**
+             * @see DocumentFile.fromFile
+             */
+            fun fromFile(file: File): Document =
+                Document(DocumentFile.fromFile(file))
+        }
     }
 }

@@ -16,6 +16,7 @@ import androidx.annotation.UiThread
 import androidx.annotation.WorkerThread
 import androidx.core.content.FileProvider
 import androidx.documentfile.provider.DocumentFile
+import com.anggrayudi.storage.FileWrapper
 import com.anggrayudi.storage.SimpleStorage
 import com.anggrayudi.storage.callback.SingleFileConflictCallback
 import com.anggrayudi.storage.extension.awaitUiResultWithPending
@@ -39,13 +40,13 @@ import com.anggrayudi.storage.file.MimeType
 import com.anggrayudi.storage.file.child
 import com.anggrayudi.storage.file.copyToFile
 import com.anggrayudi.storage.file.copyToFolder
-import com.anggrayudi.storage.file.isEnoughSpaceDefault
 import com.anggrayudi.storage.file.forceDelete
 import com.anggrayudi.storage.file.fullName
 import com.anggrayudi.storage.file.getBasePath
 import com.anggrayudi.storage.file.getStorageId
 import com.anggrayudi.storage.file.hasEnoughSpace
 import com.anggrayudi.storage.file.isEmpty
+import com.anggrayudi.storage.file.isEnoughSpaceDefault
 import com.anggrayudi.storage.file.makeFile
 import com.anggrayudi.storage.file.makeFolder
 import com.anggrayudi.storage.file.mimeType
@@ -728,7 +729,7 @@ class MediaFile @JvmOverloads constructor(
             if (deleteSourceFileWhenComplete) {
                 delete()
             }
-            scope.trySend(SingleFileResult.Completed.DocumentFile(targetFile))
+            scope.trySend(SingleFileResult.Completed(FileWrapper.Document(targetFile)))
         } finally {
             timer?.cancel()
             inputStream.closeQuietly()

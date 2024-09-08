@@ -1,6 +1,7 @@
 package com.anggrayudi.storage.result
 
 import androidx.annotation.FloatRange
+import com.anggrayudi.storage.FileWrapper
 
 /**
  * Created on 7/6/24
@@ -40,23 +41,8 @@ sealed interface SingleFileResult {
         }
     }
 
-    sealed interface Completed : SingleFileResult {
-
-        @JvmInline
-        value class MediaFile(val value: com.anggrayudi.storage.media.MediaFile) : Completed
-
-        @JvmInline
-        value class DocumentFile(val value: androidx.documentfile.provider.DocumentFile) : Completed
-
-        companion object {
-            internal fun get(file: Any): Completed =
-                when (file) {
-                    is com.anggrayudi.storage.media.MediaFile -> MediaFile(file)
-                    is androidx.documentfile.provider.DocumentFile -> DocumentFile(file)
-                    else -> throw IllegalArgumentException("File must be either of type ${com.anggrayudi.storage.media.MediaFile::class.java.name} or ${androidx.documentfile.provider.DocumentFile::class.java.name}")
-                }
-        }
-    }
+    @JvmInline
+    value class Completed(val file: FileWrapper) : SingleFileResult
 
     data class Error(val errorCode: SingleFileErrorCode, val message: String? = null) :
         SingleFileResult
