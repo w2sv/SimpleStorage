@@ -27,6 +27,19 @@ sealed interface SingleFileResult {
     ) :
         SingleFileResult
 
+    sealed interface SourceFileDeletionResult : SingleFileResult {
+        data object Success : SourceFileDeletionResult
+        data object Failure : SourceFileDeletionResult
+
+        companion object {
+            internal fun get(success: Boolean): SourceFileDeletionResult =
+                when (success) {
+                    true -> Success
+                    false -> Failure
+                }
+        }
+    }
+
     sealed interface Completed : SingleFileResult {
 
         @JvmInline

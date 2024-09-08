@@ -17,6 +17,7 @@ import androidx.annotation.WorkerThread
 import androidx.core.content.FileProvider
 import androidx.core.content.MimeTypeFilter
 import androidx.documentfile.provider.DocumentFile
+import com.anggrayudi.storage.FileWrapper
 import com.anggrayudi.storage.SimpleStorage
 import com.anggrayudi.storage.callback.MultipleFilesConflictCallback
 import com.anggrayudi.storage.callback.SingleFileConflictCallback
@@ -2724,7 +2725,7 @@ private fun DocumentFile.doesMeetFolderCopyRequirements(
  * @param fileDescription Use it if you want to change file name and type in the destination.
  */
 @WorkerThread
-fun DocumentFile.copyFileTo(
+fun DocumentFile.copyToFolder(
     context: Context,
     targetFolder: File,
     fileDescription: FileDescription? = null,
@@ -2732,7 +2733,7 @@ fun DocumentFile.copyFileTo(
     isFileSizeAllowed: CheckFileSize = defaultFileSizeChecker,
     onConflict: SingleFileConflictCallback<DocumentFile>
 ): Flow<SingleFileResult> {
-    return copyFileTo(
+    return copyToFolder(
         context,
         targetFolder.absolutePath,
         fileDescription,
@@ -2747,7 +2748,7 @@ fun DocumentFile.copyFileTo(
  * @param fileDescription Use it if you want to change file name and type in the destination.
  */
 @WorkerThread
-fun DocumentFile.copyFileTo(
+fun DocumentFile.copyToFolder(
     context: Context,
     targetFolderAbsolutePath: String,
     fileDescription: FileDescription? = null,
@@ -2760,7 +2761,7 @@ fun DocumentFile.copyFileTo(
         sendAndClose(SingleFileResult.Error(SingleFileErrorCode.CANNOT_CREATE_FILE_IN_TARGET))
     } else {
         sendAll(
-            copyFileTo(
+            copyToFolder(
                 context,
                 targetFolder,
                 fileDescription,
@@ -2776,7 +2777,7 @@ fun DocumentFile.copyFileTo(
  * @param fileDescription Use it if you want to change file name and type in the destination.
  */
 @WorkerThread
-fun DocumentFile.copyFileTo(
+fun DocumentFile.copyToFolder(
     context: Context,
     targetFolder: DocumentFile,
     fileDescription: FileDescription? = null,
@@ -2785,7 +2786,7 @@ fun DocumentFile.copyFileTo(
     onConflict: SingleFileConflictCallback<DocumentFile>
 ): Flow<SingleFileResult> = callbackFlow {
     if (fileDescription?.subFolder.isNullOrEmpty()) {
-        copyFileTo(
+        copyToFolder(
             context,
             targetFolder,
             fileDescription?.name,
@@ -2801,7 +2802,7 @@ fun DocumentFile.copyFileTo(
         if (targetDirectory == null) {
             send(SingleFileResult.Error(SingleFileErrorCode.CANNOT_CREATE_FILE_IN_TARGET))
         } else {
-            copyFileTo(
+            copyToFolder(
                 context,
                 targetDirectory,
                 fileDescription?.name,
@@ -2816,7 +2817,8 @@ fun DocumentFile.copyFileTo(
     close()
 }
 
-private fun DocumentFile.copyFileTo(
+@WorkerThread
+private fun DocumentFile.copyToFolder(
     context: Context,
     targetFolder: DocumentFile,
     newFilenameInTargetPath: String?,
@@ -2827,7 +2829,7 @@ private fun DocumentFile.copyFileTo(
     onConflict: SingleFileConflictCallback<DocumentFile>
 ) {
     val writableTargetFolder =
-        doesMeetFileCopyRequirements(context, targetFolder, newFilenameInTargetPath, scope)
+        isCopyable(context, targetFolder, newFilenameInTargetPath, scope)
             ?: return
 
     scope.trySend(SingleFileResult.Preparing)
@@ -2847,21 +2849,20 @@ private fun DocumentFile.copyFileTo(
         newFilenameInTargetPath ?: name.orEmpty(),
         newMimeTypeInTargetPath ?: mimeTypeByFileName
     )
-        .removeForbiddenCharsFromFilename().trimFileSeparator()
+        .removeForbiddenCharsFromFilename()
+        .trimFileSeparator()
     val fileConflictResolution =
         handleFileConflict(context, writableTargetFolder, cleanFileName, scope, onConflict)
-    if (fileConflictResolution == SingleFileConflictCallback.ConflictResolution.SKIP) {
-        return
-    }
+            .also { if (it == SingleFileConflictCallback.ConflictResolution.SKIP) return }
 
     try {
         val targetFile = createTargetFile(
-            context,
-            writableTargetFolder,
-            cleanFileName,
-            newMimeTypeInTargetPath ?: mimeTypeByFileName,
-            fileConflictResolution.toCreateMode(),
-            scope
+            context = context,
+            targetFolder = writableTargetFolder,
+            newFilenameInTargetPath = cleanFileName,
+            mimeType = newMimeTypeInTargetPath ?: mimeTypeByFileName,
+            mode = fileConflictResolution.toCreateMode(),
+            scope = scope
         ) ?: return
         val outputStream = targetFile.openOutputStream(context)
         if (outputStream == null) {
@@ -2874,16 +2875,112 @@ private fun DocumentFile.copyFileTo(
             scope.trySend(SingleFileResult.Error(SingleFileErrorCode.SOURCE_FILE_NOT_FOUND))
             return
         }
-        copyFileStream(inputStream, outputStream, targetFile, updateInterval, false, scope)
+        copyFileStream(
+            inputStream = inputStream,
+            outputStream = outputStream,
+            targetFile = FileWrapper.Document(targetFile),
+            updateInterval = updateInterval,
+            deleteSourceFileWhenComplete = false,
+            scope = scope
+        )
+    } catch (e: Exception) {
+        scope.trySend(SingleFileResult.Error(e.toFileCallbackErrorCode()))
+    }
+}
+
+@WorkerThread
+fun DocumentFile.copyToFile(
+    context: Context,
+    targetFile: DocumentFile,
+    updateInterval: Long,
+    scope: ProducerScope<SingleFileResult>,
+    isFileSizeAllowed: CheckFileSize,
+    deleteSourceFileOnSuccess: Boolean
+) {
+    val writableTargetFile =
+        isCopyable(context = context, targetFile = targetFile, scope = scope) ?: return
+
+    scope.trySend(SingleFileResult.Preparing)
+
+    if (!isFileSizeAllowed(
+            DocumentFileCompat.getFreeSpace(
+                context,
+                writableTargetFile.getStorageId(context)
+            ),
+            length()
+        )
+    ) {
+        scope.trySend(SingleFileResult.Error(SingleFileErrorCode.NO_SPACE_LEFT_ON_TARGET_PATH))
+        return
+    }
+
+    try {
+        val outputStream = targetFile.openOutputStream(context)
+            .also {
+                if (it == null) {
+                    scope.trySend(SingleFileResult.Error(SingleFileErrorCode.TARGET_FILE_NOT_FOUND))
+                    return
+                }
+            }
+        val inputStream = openInputStream(context)
+            .also {
+                if (it == null) {
+                    outputStream.closeStreamQuietly()
+                    scope.trySend(SingleFileResult.Error(SingleFileErrorCode.SOURCE_FILE_NOT_FOUND))
+                    return
+                }
+            }
+        copyFileStream(
+            inputStream = inputStream!!,
+            outputStream = outputStream!!,
+            targetFile = FileWrapper.Document(targetFile),
+            updateInterval = updateInterval,
+            deleteSourceFileWhenComplete = deleteSourceFileOnSuccess,
+            scope = scope
+        )
     } catch (e: Exception) {
         scope.trySend(SingleFileResult.Error(e.toFileCallbackErrorCode()))
     }
 }
 
 /**
- * @return writable [DocumentFile] for `targetFolder`
+ * @return Writable [targetFile] or null.
  */
-private fun DocumentFile.doesMeetFileCopyRequirements(
+private fun DocumentFile.isCopyable(
+    context: Context,
+    targetFile: DocumentFile,
+    scope: ProducerScope<SingleFileResult>
+): DocumentFile? {
+    scope.trySend(SingleFileResult.Validating)
+
+    if (!isFile) {
+        scope.trySend(SingleFileResult.Error(SingleFileErrorCode.SOURCE_FILE_NOT_FOUND))
+        return null
+    }
+
+    if (!targetFile.isFile) {
+        scope.trySend(SingleFileResult.Error(SingleFileErrorCode.TARGET_FILE_NOT_FOUND))
+        return null
+    }
+
+    if (!canRead() || !targetFile.isWritable(context)) {
+        scope.trySend(SingleFileResult.Error(SingleFileErrorCode.STORAGE_PERMISSION_DENIED))
+        return null
+    }
+
+    return targetFile
+        .let { if (it.isDownloadsDocument) it.toWritableDownloadsDocumentFile(context) else it }
+        .also {
+            if (it == null) {
+                scope.trySend(SingleFileResult.Error(SingleFileErrorCode.STORAGE_PERMISSION_DENIED))
+            }
+        }
+}
+
+/**
+ * @return Writable [targetFolder] or null.
+ */
+private fun DocumentFile.isCopyable(
     context: Context,
     targetFolder: DocumentFile,
     newFilenameInTargetPath: String?,
@@ -2911,12 +3008,13 @@ private fun DocumentFile.doesMeetFileCopyRequirements(
         return null
     }
 
-    val writableFolder =
-        targetFolder.let { if (it.isDownloadsDocument) it.toWritableDownloadsDocumentFile(context) else it }
-    if (writableFolder == null) {
-        scope.trySend(SingleFileResult.Error(SingleFileErrorCode.STORAGE_PERMISSION_DENIED))
-    }
-    return writableFolder
+    return targetFolder
+        .let { if (it.isDownloadsDocument) it.toWritableDownloadsDocumentFile(context) else it }
+        .also {
+            if (it == null) {
+                scope.trySend(SingleFileResult.Error(SingleFileErrorCode.STORAGE_PERMISSION_DENIED))
+            }
+        }
 }
 
 private fun createTargetFile(
@@ -2934,13 +3032,10 @@ private fun createTargetFile(
     return targetFile
 }
 
-/**
- * @param targetFile can be [MediaFile] or [DocumentFile]
- */
 private fun DocumentFile.copyFileStream(
     inputStream: InputStream,
     outputStream: OutputStream,
-    targetFile: Any,
+    targetFile: FileWrapper,
     updateInterval: Long,
     deleteSourceFileWhenComplete: Boolean,
     scope: ProducerScope<SingleFileResult>,
@@ -2973,10 +3068,10 @@ private fun DocumentFile.copyFileStream(
         }
         timer?.cancel()
         if (deleteSourceFileWhenComplete) {
-            delete()
+            delete().also { scope.trySend(SingleFileResult.SourceFileDeletionResult.get(it)) }
         }
-        if (targetFile is MediaFile) {
-            targetFile.length = srcSize
+        if (targetFile is FileWrapper.Media) {
+            targetFile.mediaFile.length = srcSize
         }
         scope.trySend(SingleFileResult.Completed.get(targetFile))
     } finally {
@@ -3093,7 +3188,7 @@ private fun DocumentFile.moveFileTo(
     onConflict: SingleFileConflictCallback<DocumentFile>
 ) {
     val writableTargetFolder =
-        doesMeetFileCopyRequirements(context, targetFolder, newFilenameInTargetPath, scope)
+        isCopyable(context, targetFolder, newFilenameInTargetPath, scope)
             ?: return
 
     scope.trySend(SingleFileResult.Preparing)
@@ -3195,7 +3290,14 @@ private fun DocumentFile.moveFileTo(
             scope.trySend(SingleFileResult.Error(SingleFileErrorCode.SOURCE_FILE_NOT_FOUND))
             return
         }
-        copyFileStream(inputStream, outputStream, targetFile, updateInterval, true, scope)
+        copyFileStream(
+            inputStream = inputStream,
+            outputStream = outputStream,
+            targetFile = FileWrapper.Document(targetFile),
+            updateInterval = updateInterval,
+            deleteSourceFileWhenComplete = true,
+            scope = scope
+        )
     } catch (e: Exception) {
         scope.trySend(SingleFileResult.Error(e.toFileCallbackErrorCode()))
     }
@@ -3262,7 +3364,7 @@ private fun DocumentFile.copyFileToMedia(
                 onConflict
             )
         } else {
-            copyFileTo(
+            copyToFolder(
                 context,
                 publicFolder,
                 fileDescription,
@@ -3281,7 +3383,7 @@ private fun DocumentFile.copyFileToMedia(
         if (mediaFile == null) {
             scope.trySend(SingleFileResult.Error(SingleFileErrorCode.CANNOT_CREATE_FILE_IN_TARGET))
         } else {
-            copyFileTo(
+            copyToFolder(
                 context,
                 mediaFile,
                 deleteSourceFileWhenComplete,
@@ -3399,7 +3501,7 @@ fun DocumentFile.moveFileTo(
     updateInterval: Long = 500,
     isFileSizeAllowed: CheckFileSize = defaultFileSizeChecker,
 ): Flow<SingleFileResult> = callbackFlow {
-    copyFileTo(context, targetFile, true, updateInterval, this, isFileSizeAllowed)
+    copyToFolder(context, targetFile, true, updateInterval, this, isFileSizeAllowed)
     close()
 }
 
@@ -3407,17 +3509,17 @@ fun DocumentFile.moveFileTo(
  * @param targetFile create it with [MediaStoreCompat], e.g. [MediaStoreCompat.createDownload]
  */
 @WorkerThread
-fun DocumentFile.copyFileTo(
+fun DocumentFile.copyToFolder(
     context: Context,
     targetFile: MediaFile,
     updateInterval: Long = 500,
     isFileSizeAllowed: CheckFileSize = defaultFileSizeChecker,
 ): Flow<SingleFileResult> = callbackFlow {
-    copyFileTo(context, targetFile, false, updateInterval, this, isFileSizeAllowed)
+    copyToFolder(context, targetFile, false, updateInterval, this, isFileSizeAllowed)
     close()
 }
 
-private fun DocumentFile.copyFileTo(
+private fun DocumentFile.copyToFolder(
     context: Context,
     targetFile: MediaFile,
     deleteSourceFileWhenComplete: Boolean,
@@ -3445,12 +3547,12 @@ private fun DocumentFile.copyFileTo(
             return
         }
         copyFileStream(
-            inputStream,
-            outputStream,
-            targetFile,
-            updateInterval,
-            deleteSourceFileWhenComplete,
-            scope
+            inputStream = inputStream,
+            outputStream = outputStream,
+            targetFile = FileWrapper.Media(targetFile),
+            updateInterval = updateInterval,
+            deleteSourceFileWhenComplete = deleteSourceFileWhenComplete,
+            scope = scope
         )
     } catch (e: Exception) {
         scope.trySend(SingleFileResult.Error(e.toFileCallbackErrorCode()))
