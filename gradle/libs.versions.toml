@@ -1,0 +1,63 @@
+[versions]
+activity = "1.9.0"
+appcompat = "1.7.0"
+core-ktx = "1.13.1"
+coroutines = "1.8.1"
+documentfile = "1.0.1"
+fragment = "1.8.0"
+junit = "5.9.1"
+lifecycle-viewmodel-ktx = "2.8.5"
+material-dialogs = "3.3.0"
+material-progressbar = "1.6.1"
+mockk = "1.13.5"
+multidex = "2.0.1"
+robolectric = "4.10.3"
+timber = "5.0.1"
+kotlin = "2.0.0"
+android-gradle-plugin = "8.6.0"
+maven-publish-plugin = "0.28.0"
+dokka = "1.9.20"
+mockito-core = "5.12.0"
+mockito-inline = "3.10.0"
+mockito-all = "1.10.19"
+mockito-kotlin = "2.2.0"
+powermock-api-mockito2 = "2.0.9"
+powermock-module-junit4 = "2.0.9"
+
+[libraries]
+# Androidx dependencies
+activity = { group = "androidx.activity", name = "activity", version.ref = "activity" }
+appcompat = { group = "androidx.appcompat", name = "appcompat", version.ref = "appcompat" }
+androidx-core-ktx = { group = "androidx.core", name = "core-ktx", version.ref = "core-ktx" }
+fragment = { group = "androidx.fragment", name = "fragment", version.ref = "fragment" }
+lifecycle-viewmodel-ktx = { module = "androidx.lifecycle:lifecycle-viewmodel-ktx", version.ref = "lifecycle-viewmodel-ktx" }
+multidex = { group = "androidx.multidex", name = "multidex", version.ref = "multidex" }
+documentfile = { group = "androidx.documentfile", name = "documentfile", version.ref = "documentfile" }
+
+# Kotlin Coroutines
+coroutines-android = { group = "org.jetbrains.kotlinx", name = "kotlinx-coroutines-android", version.ref = "coroutines" }
+
+# Testing dependencies
+junit = { group = "org.junit.jupiter", name = "junit-jupiter-engine", version.ref = "junit" }
+robolectric = { group = "org.robolectric", name = "robolectric", version.ref = "robolectric" }
+mockk = { group = "io.mockk", name = "mockk", version.ref = "mockk" }
+
+# Others
+material-dialogs-core = { group = "com.afollestad.material-dialogs", name = "core", version.ref = "material-dialogs" }
+material-dialogs-files = { group = "com.afollestad.material-dialogs", name = "files", version.ref = "material-dialogs" }
+material-progressbar = { group = "me.zhanghai.android.materialprogressbar", name = "library", version.ref = "material-progressbar" }
+timber = { group = "com.jakewharton.timber", name = "timber", version.ref = "timber" }
+
+# Mockito
+mockito-core = { group = "org.mockito", name = "mockito-core", version.ref = "mockito-core" }
+mockito-inline = { group = "org.mockito", name = "mockito-inline", version.ref = "mockito-inline" }
+mockito-all = { group = "org.mockito", name = "mockito-all", version.ref = "mockito-all" }
+mockito-kotlin = { group = "com.nhaarman.mockitokotlin2", name = "mockito-kotlin", version.ref = "mockito-kotlin" }
+
+# PowerMock
+powermock-api-mockito2 = { group = "org.powermock", name = "powermock-api-mockito2", version.ref = "powermock-api-mockito2" }
+powermock-module-junit4 = { group = "org.powermock", name = "powermock-module-junit4", version.ref = "powermock-module-junit4" }
+
+[plugins]
+android-library = { id = "com.android.library", version.ref = "android-gradle-plugin" }
+kotlin-android = { id = "org.jetbrains.kotlin.android", version.ref = "kotlin" }
