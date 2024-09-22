@@ -55,7 +55,7 @@ import com.anggrayudi.storage.result.FilePropertiesResult
 import com.anggrayudi.storage.result.FolderErrorCode
 import com.anggrayudi.storage.result.MultipleFilesErrorCode
 import com.anggrayudi.storage.result.MultipleFilesResult
-import com.anggrayudi.storage.result.SingleFileErrorCode
+import com.anggrayudi.storage.result.SingleFileError
 import com.anggrayudi.storage.result.SingleFileResult
 import com.anggrayudi.storage.result.SingleFolderResult
 import com.anggrayudi.storage.result.ZipCompressionErrorCode
@@ -83,18 +83,28 @@ typealias IsEnoughSpace = (freeSpace: Long, fileSize: Long) -> Boolean
 internal val isEnoughSpaceDefault: IsEnoughSpace =
     { freeSpace, fileSize -> fileSize <= freeSpace }
 
+internal fun enoughSpaceOnStorage(
+    context: Context,
+    storageId: String,
+    requiredSpace: Long
+): SingleFileError.NotEnoughSpaceOnTarget? {
+    val freeSpace = DocumentFileCompat.getFreeSpace(
+        context,
+        storageId
+    )
+    return if (requiredSpace > freeSpace) {
+        SingleFileError.NotEnoughSpaceOnTarget(freeSpace, requiredSpace)
+    } else {
+        null
+    }
+}
+
 internal fun DocumentFile.hasEnoughSpace(
     context: Context,
-    fileSize: Long,
-    isEnoughSpace: IsEnoughSpace,
-): Boolean =
-    isEnoughSpace(
-        DocumentFileCompat.getFreeSpace(
-            context,
-            getStorageId(context)
-        ),
-        fileSize
-    )
+    requiredSpace: Long
+): SingleFileError.NotEnoughSpaceOnTarget? =
+    enoughSpaceOnStorage(context, getStorageId(context), requiredSpace)
+
 
 /**
  * Created on 16/08/20
@@ -2744,7 +2754,7 @@ fun DocumentFile.copyToFolder(
     targetFolder: File,
     fileDescription: FileDescription? = null,
     updateInterval: Long = 500,
-    isFileSizeAllowed: IsEnoughSpace = isEnoughSpaceDefault,
+    checkIfEnoughSpaceOnTarget: Boolean = true,
     onConflict: SingleFileConflictCallback<DocumentFile>
 ): Flow<SingleFileResult> {
     return copyToFolder(
@@ -2752,7 +2762,7 @@ fun DocumentFile.copyToFolder(
         targetFolder.absolutePath,
         fileDescription,
         updateInterval,
-        isFileSizeAllowed,
+        checkIfEnoughSpaceOnTarget,
         onConflict
     )
 }
@@ -2767,12 +2777,12 @@ fun DocumentFile.copyToFolder(
     targetFolderAbsolutePath: String,
     fileDescription: FileDescription? = null,
     updateInterval: Long = 500,
-    isFileSizeAllowed: IsEnoughSpace = isEnoughSpaceDefault,
+    checkIfEnoughSpaceOnTarget: Boolean = true,
     onConflict: SingleFileConflictCallback<DocumentFile>
 ): Flow<SingleFileResult> = channelFlow {
     val targetFolder = DocumentFileCompat.mkdirs(context, targetFolderAbsolutePath, true)
     if (targetFolder == null) {
-        sendAndClose(SingleFileResult.Error(SingleFileErrorCode.CANNOT_CREATE_FILE_IN_TARGET))
+        sendAndClose(SingleFileResult.Error(SingleFileError.TargetNotWritable))
     } else {
         sendAll(
             copyToFolder(
@@ -2780,7 +2790,7 @@ fun DocumentFile.copyToFolder(
                 targetFolder,
                 fileDescription,
                 updateInterval,
-                isFileSizeAllowed,
+                checkIfEnoughSpaceOnTarget,
                 onConflict
             )
         )
@@ -2796,7 +2806,7 @@ fun DocumentFile.copyToFolder(
     targetFolder: DocumentFile,
     fileDescription: FileDescription? = null,
     updateInterval: Long = 500,
-    isFileSizeAllowed: IsEnoughSpace? = isEnoughSpaceDefault,
+    checkIfEnoughSpaceOnTarget: Boolean = true,
     onConflict: SingleFileConflictCallback<DocumentFile>
 ): Flow<SingleFileResult> = channelFlow {
     if (fileDescription?.subFolder.isNullOrEmpty()) {
@@ -2806,7 +2816,7 @@ fun DocumentFile.copyToFolder(
             fileDescription,
             updateInterval,
             this,
-            isFileSizeAllowed,
+            checkIfEnoughSpaceOnTarget,
             onConflict
         )
     } else {
@@ -2814,7 +2824,7 @@ fun DocumentFile.copyToFolder(
             targetFolder.makeFolder(context, fileDescription?.subFolder.orEmpty(), CreateMode.REUSE)
                 .also {
                     if (it == null) {
-                        send(SingleFileResult.Error(SingleFileErrorCode.CANNOT_CREATE_FILE_IN_TARGET))
+                        send(SingleFileResult.Error(SingleFileError.TargetNotWritable))
                         return@channelFlow
                     }
                 }
@@ -2824,7 +2834,7 @@ fun DocumentFile.copyToFolder(
             fileDescription,
             updateInterval,
             this,
-            isFileSizeAllowed,
+            checkIfEnoughSpaceOnTarget,
             onConflict
         )
     }
@@ -2838,7 +2848,7 @@ private fun DocumentFile.copyToFolder(
     fileDescription: FileDescription?,
     updateInterval: Long,
     scope: ProducerScope<SingleFileResult>,
-    isEnoughSpace: IsEnoughSpace?,
+    checkIfEnoughSpaceOnTarget: Boolean = true,
     onConflict: SingleFileConflictCallback<DocumentFile>
 ) {
     val writableTargetFolder =
@@ -2847,9 +2857,9 @@ private fun DocumentFile.copyToFolder(
 
     scope.trySend(SingleFileResult.Preparing)
 
-    isEnoughSpace?.let {
-        if (!writableTargetFolder.hasEnoughSpace(context, length(), it)) {
-            scope.trySend(SingleFileResult.Error(SingleFileErrorCode.NO_SPACE_LEFT_ON_TARGET_PATH))
+    if (checkIfEnoughSpaceOnTarget) {
+        writableTargetFolder.hasEnoughSpace(context, length())?.let {
+            scope.trySend(SingleFileResult.Error(it))
             return
         }
     }
@@ -2903,14 +2913,14 @@ internal data class IOStreams(val input: InputStream, val output: OutputStream) 
             val outputStream = target.openOutputStream(context)
                 .also {
                     if (it == null) {
-                        scope.trySend(SingleFileResult.Error(SingleFileErrorCode.TARGET_FILE_NOT_FOUND))
+                        scope.trySend(SingleFileResult.Error(SingleFileError.TargetNotFound))
                     }
                 }
             val inputStream = source.openInputStream(context)
                 .also {
                     if (it == null) {
                         outputStream.closeQuietly()
-                        scope.trySend(SingleFileResult.Error(SingleFileErrorCode.SOURCE_FILE_NOT_FOUND))
+                        scope.trySend(SingleFileResult.Error(SingleFileError.SourceNotFound))
                     }
                 }
             return if (outputStream == null || inputStream == null)
@@ -2930,9 +2940,15 @@ fun DocumentFile.copyToFile(
     targetFile: DocumentFile,
     updateInterval: Long,
     scope: ProducerScope<SingleFileResult>,
-    deleteSourceFileOnSuccess: Boolean
+    deleteSourceFileOnSuccess: Boolean,
+    checkIfTargetWritable: Boolean
 ) {
-    isCopyable(context = context, targetFile = targetFile, scope = scope) ?: return
+    isCopyable(
+        context = context,
+        targetFile = targetFile,
+        checkIfTargetWritable = checkIfTargetWritable,
+        scope = scope
+    ) ?: return
 
     scope.trySend(SingleFileResult.Preparing)
 
@@ -2956,22 +2972,28 @@ fun DocumentFile.copyToFile(
 private fun DocumentFile.isCopyable(
     context: Context,
     targetFile: DocumentFile,
+    checkIfTargetWritable: Boolean,
     scope: ProducerScope<SingleFileResult>
 ): DocumentFile? {
     scope.trySend(SingleFileResult.Validating)
 
     if (!isFile) {
-        scope.trySend(SingleFileResult.Error(SingleFileErrorCode.SOURCE_FILE_NOT_FOUND))
+        scope.trySend(SingleFileResult.Error(SingleFileError.SourceNotFound))
         return null
     }
 
     if (!targetFile.isFile) {
-        scope.trySend(SingleFileResult.Error(SingleFileErrorCode.TARGET_FILE_NOT_FOUND))
+        scope.trySend(SingleFileResult.Error(SingleFileError.TargetNotFound))
         return null
     }
 
-    if (!canRead() || !targetFile.isWritable(context)) {
-        scope.trySend(SingleFileResult.Error(SingleFileErrorCode.STORAGE_PERMISSION_DENIED))
+    if (!canRead()) {
+        scope.trySend(SingleFileResult.Error(SingleFileError.SourceNotReadable))
+        return null
+    }
+
+    if (checkIfTargetWritable && !targetFile.isWritable(context)) {
+        scope.trySend(SingleFileResult.Error(SingleFileError.TargetNotWritable))
         return null
     }
 
@@ -2979,7 +3001,7 @@ private fun DocumentFile.isCopyable(
         .let { if (it.isDownloadsDocument) it.toWritableDownloadsDocumentFile(context) else it }
         .also {
             if (it == null) {
-                scope.trySend(SingleFileResult.Error(SingleFileErrorCode.STORAGE_PERMISSION_DENIED))
+                scope.trySend(SingleFileResult.Error(SingleFileError.StoragePermissionMissing))
             }
         }
 }
@@ -2996,22 +3018,27 @@ private fun DocumentFile.isCopyable(
     scope.trySend(SingleFileResult.Validating)
 
     if (!isFile) {
-        scope.trySend(SingleFileResult.Error(SingleFileErrorCode.SOURCE_FILE_NOT_FOUND))
+        scope.trySend(SingleFileResult.Error(SingleFileError.SourceNotFound))
         return null
     }
 
     if (!targetFolder.isDirectory) {
-        scope.trySend(SingleFileResult.Error(SingleFileErrorCode.TARGET_FOLDER_NOT_FOUND))
+        scope.trySend(SingleFileResult.Error(SingleFileError.TargetNotFound))
         return null
     }
 
-    if (!canRead() || !targetFolder.isWritable(context)) {
-        scope.trySend(SingleFileResult.Error(SingleFileErrorCode.STORAGE_PERMISSION_DENIED))
+    if (!canRead()) {
+        scope.trySend(SingleFileResult.Error(SingleFileError.SourceNotReadable))
+        return null
+    }
+
+    if (!targetFolder.isWritable(context)) {
+        scope.trySend(SingleFileResult.Error(SingleFileError.TargetNotWritable))
         return null
     }
 
     if (parentFile?.getAbsolutePath(context) == targetFolder.getAbsolutePath(context) && (newFilenameInTargetPath.isNullOrEmpty() || name == newFilenameInTargetPath)) {
-        scope.trySend(SingleFileResult.Error(SingleFileErrorCode.TARGET_FOLDER_CANNOT_HAVE_SAME_PATH_WITH_SOURCE_FOLDER))
+        scope.trySend(SingleFileResult.Error(SingleFileError.SourceAlreadyAtTarget))
         return null
     }
 
@@ -3019,7 +3046,7 @@ private fun DocumentFile.isCopyable(
         .let { if (it.isDownloadsDocument) it.toWritableDownloadsDocumentFile(context) else it }
         .also {
             if (it == null) {
-                scope.trySend(SingleFileResult.Error(SingleFileErrorCode.STORAGE_PERMISSION_DENIED))
+                scope.trySend(SingleFileResult.Error(SingleFileError.StoragePermissionMissing))
             }
         }
 }
@@ -3034,7 +3061,7 @@ private fun createTargetFile(
 ): DocumentFile? {
     val targetFile = targetFolder.makeFile(context, newFilenameInTargetPath, mimeType, mode)
     if (targetFile == null) {
-        scope.trySend(SingleFileResult.Error(SingleFileErrorCode.CANNOT_CREATE_FILE_IN_TARGET))
+        scope.trySend(SingleFileResult.Error(SingleFileError.TargetNotWritable))
     }
     return targetFile
 }
@@ -3097,7 +3124,7 @@ fun DocumentFile.moveFileTo(
     targetFolder: File,
     fileDescription: FileDescription? = null,
     updateInterval: Long = 500,
-    isFileSizeAllowed: IsEnoughSpace = isEnoughSpaceDefault,
+    checkIfEnoughSpaceOnTarget: Boolean,
     onConflict: SingleFileConflictCallback<DocumentFile>
 ): Flow<SingleFileResult> {
     return moveFileTo(
@@ -3105,7 +3132,7 @@ fun DocumentFile.moveFileTo(
         targetFolder.absolutePath,
         fileDescription,
         updateInterval,
-        isFileSizeAllowed,
+        checkIfEnoughSpaceOnTarget,
         onConflict
     )
 }
@@ -3120,12 +3147,12 @@ fun DocumentFile.moveFileTo(
     targetFolderAbsolutePath: String,
     fileDescription: FileDescription? = null,
     updateInterval: Long = 500,
-    isFileSizeAllowed: IsEnoughSpace = isEnoughSpaceDefault,
+    checkIfEnoughSpaceOnTarget: Boolean = true,
     onConflict: SingleFileConflictCallback<DocumentFile>
 ): Flow<SingleFileResult> = channelFlow {
     val targetFolder = DocumentFileCompat.mkdirs(context, targetFolderAbsolutePath, true)
     if (targetFolder == null) {
-        sendAndClose(SingleFileResult.Error(SingleFileErrorCode.CANNOT_CREATE_FILE_IN_TARGET))
+        sendAndClose(SingleFileResult.Error(SingleFileError.TargetNotWritable))
     } else {
         sendAll(
             moveFileTo(
@@ -3133,7 +3160,7 @@ fun DocumentFile.moveFileTo(
                 targetFolder,
                 fileDescription,
                 updateInterval,
-                isFileSizeAllowed,
+                checkIfEnoughSpaceOnTarget,
                 onConflict
             )
         )
@@ -3149,7 +3176,7 @@ fun DocumentFile.moveFileTo(
     targetFolder: DocumentFile,
     fileDescription: FileDescription? = null,
     updateInterval: Long = 500,
-    isFileSizeAllowed: IsEnoughSpace = isEnoughSpaceDefault,
+    checkIfEnoughSpaceOnTarget: Boolean = true,
     onConflict: SingleFileConflictCallback<DocumentFile>
 ): Flow<SingleFileResult> = channelFlow {
     if (fileDescription?.subFolder.isNullOrEmpty()) {
@@ -3160,7 +3187,7 @@ fun DocumentFile.moveFileTo(
             fileDescription?.mimeType,
             updateInterval,
             this,
-            isFileSizeAllowed,
+            checkIfEnoughSpaceOnTarget,
             onConflict
         )
     } else {
@@ -3171,7 +3198,7 @@ fun DocumentFile.moveFileTo(
                 CreateMode.REUSE
             )
         if (targetDirectory == null) {
-            send(SingleFileResult.Error(SingleFileErrorCode.CANNOT_CREATE_FILE_IN_TARGET))
+            send(SingleFileResult.Error(SingleFileError.TargetNotWritable))
         } else {
             moveFileTo(
                 context,
@@ -3180,7 +3207,7 @@ fun DocumentFile.moveFileTo(
                 fileDescription?.mimeType,
                 updateInterval,
                 this,
-                isFileSizeAllowed,
+                checkIfEnoughSpaceOnTarget,
                 onConflict
             )
         }
@@ -3195,7 +3222,7 @@ private fun DocumentFile.moveFileTo(
     newMimeTypeInTargetPath: String?,
     updateInterval: Long,
     scope: ProducerScope<SingleFileResult>,
-    isFileSizeAllowed: IsEnoughSpace,
+    checkIfEnoughSpaceOnTarget: Boolean = true,
     onConflict: SingleFileConflictCallback<DocumentFile>
 ) {
     val writableTargetFolder =
@@ -3231,7 +3258,7 @@ private fun DocumentFile.moveFileTo(
     if (isExternalStorageManager(context) && getStorageId(context) == targetStorageId) {
         val sourceFile = toRawFile(context)
         if (sourceFile == null) {
-            scope.trySend(SingleFileResult.Error(SingleFileErrorCode.STORAGE_PERMISSION_DENIED))
+            scope.trySend(SingleFileResult.Error(SingleFileError.StoragePermissionMissing))
             return
         }
         writableTargetFolder.toRawFile(context)?.let { destinationFolder ->
@@ -3262,22 +3289,20 @@ private fun DocumentFile.moveFileTo(
                     if (newFilenameInTargetPath != null) newFile.renameTo(cleanFileName)
                     scope.trySend(SingleFileResult.Completed(FileWrapper.Document(newFile)))
                 } else {
-                    scope.trySend(SingleFileResult.Error(SingleFileErrorCode.TARGET_FILE_NOT_FOUND))
+                    scope.trySend(SingleFileResult.Error(SingleFileError.TargetNotFound))
                 }
                 return
             }
         }
 
-        if (!isFileSizeAllowed(
-                DocumentFileCompat.getFreeSpace(context, targetStorageId),
-                length()
-            )
-        ) {
-            scope.trySend(SingleFileResult.Error(SingleFileErrorCode.NO_SPACE_LEFT_ON_TARGET_PATH))
-            return
+        if (checkIfEnoughSpaceOnTarget) {
+            targetFolder.hasEnoughSpace(context, length())?.let {
+                scope.trySend(SingleFileResult.Error(it))
+                return
+            }
         }
     } catch (e: Throwable) {
-        scope.trySend(SingleFileResult.Error(SingleFileErrorCode.STORAGE_PERMISSION_DENIED))
+        scope.trySend(SingleFileResult.Error(SingleFileError.StoragePermissionMissing))
         return
     }
 
@@ -3309,11 +3334,11 @@ private fun DocumentFile.moveFileTo(
  */
 private fun DocumentFile.simpleCheckSourceFile(scope: ProducerScope<SingleFileResult>): Boolean {
     if (!isFile) {
-        scope.trySend(SingleFileResult.Error(SingleFileErrorCode.SOURCE_FILE_NOT_FOUND))
+        scope.trySend(SingleFileResult.Error(SingleFileError.SourceNotFound))
         return true
     }
     if (!canRead()) {
-        scope.trySend(SingleFileResult.Error(SingleFileErrorCode.STORAGE_PERMISSION_DENIED))
+        scope.trySend(SingleFileResult.Error(SingleFileError.StoragePermissionMissing))
         return true
     }
     return false
@@ -3327,7 +3352,7 @@ private fun DocumentFile.copyFileToMedia(
     mode: CreateMode,
     updateInterval: Long,
     scope: ProducerScope<SingleFileResult>,
-    isFileSizeAllowed: IsEnoughSpace,
+    checkIfEnoughSpaceOnTarget: Boolean,
     onConflict: SingleFileConflictCallback<DocumentFile>,
 ) {
     if (simpleCheckSourceFile(scope)) return
@@ -3340,13 +3365,13 @@ private fun DocumentFile.copyFileToMedia(
     )
     if (Build.VERSION.SDK_INT < Build.VERSION_CODES.Q || deleteSourceFileWhenComplete && !isRawFile && publicFolder?.isTreeDocumentFile == true) {
         if (publicFolder == null) {
-            scope.trySend(SingleFileResult.Error(SingleFileErrorCode.STORAGE_PERMISSION_DENIED))
+            scope.trySend(SingleFileResult.Error(SingleFileError.StoragePermissionMissing))
             return
         }
         publicFolder.child(context, fileDescription.fullName)?.let {
             if (mode == CreateMode.REPLACE) {
                 if (!it.forceDelete(context)) {
-                    scope.trySend(SingleFileResult.Error(SingleFileErrorCode.CANNOT_CREATE_FILE_IN_TARGET))
+                    scope.trySend(SingleFileResult.Error(SingleFileError.TargetNotWritable))
                     return
                 }
             } else {
@@ -3361,7 +3386,7 @@ private fun DocumentFile.copyFileToMedia(
                 publicFolder,
                 fileDescription,
                 updateInterval,
-                isFileSizeAllowed,
+                checkIfEnoughSpaceOnTarget,
                 onConflict
             )
         } else {
@@ -3370,7 +3395,7 @@ private fun DocumentFile.copyFileToMedia(
                 publicFolder,
                 fileDescription,
                 updateInterval,
-                isFileSizeAllowed,
+                checkIfEnoughSpaceOnTarget,
                 onConflict
             )
         }
@@ -3382,15 +3407,15 @@ private fun DocumentFile.copyFileToMedia(
             MediaStoreCompat.createImage(context, fileDescription, mode = validMode)
         }
         if (mediaFile == null) {
-            scope.trySend(SingleFileResult.Error(SingleFileErrorCode.CANNOT_CREATE_FILE_IN_TARGET))
+            scope.trySend(SingleFileResult.Error(SingleFileError.TargetNotWritable))
         } else {
             copyToFolder(
                 context,
                 mediaFile,
                 deleteSourceFileWhenComplete,
                 updateInterval,
-                scope,
-                isFileSizeAllowed
+                checkIfEnoughSpaceOnTarget,
+                scope
             )
         }
     }
@@ -3403,7 +3428,7 @@ fun DocumentFile.copyFileToDownloadMedia(
     fileDescription: FileDescription,
     mode: CreateMode = CreateMode.CREATE_NEW,
     updateInterval: Long = 500,
-    isFileSizeAllowed: IsEnoughSpace = isEnoughSpaceDefault,
+    checkIfEnoughSpaceOnTarget: Boolean,
     onConflict: SingleFileConflictCallback<DocumentFile>,
 ): Flow<SingleFileResult> = channelFlow {
     copyFileToMedia(
@@ -3414,7 +3439,7 @@ fun DocumentFile.copyFileToDownloadMedia(
         mode,
         updateInterval,
         this,
-        isFileSizeAllowed,
+        checkIfEnoughSpaceOnTarget,
         onConflict
     )
     close()
@@ -3427,7 +3452,7 @@ fun DocumentFile.copyFileToPictureMedia(
     fileDescription: FileDescription,
     mode: CreateMode = CreateMode.CREATE_NEW,
     updateInterval: Long = 500,
-    isFileSizeAllowed: IsEnoughSpace = isEnoughSpaceDefault,
+    checkIfEnoughSpaceOnTarget: Boolean,
     onConflict: SingleFileConflictCallback<DocumentFile>,
 ): Flow<SingleFileResult> = channelFlow {
     copyFileToMedia(
@@ -3438,7 +3463,7 @@ fun DocumentFile.copyFileToPictureMedia(
         mode,
         updateInterval,
         this,
-        isFileSizeAllowed,
+        checkIfEnoughSpaceOnTarget,
         onConflict
     )
     close()
@@ -3451,7 +3476,7 @@ fun DocumentFile.moveFileToDownloadMedia(
     fileDescription: FileDescription,
     mode: CreateMode = CreateMode.CREATE_NEW,
     updateInterval: Long = 500,
-    isFileSizeAllowed: IsEnoughSpace = isEnoughSpaceDefault,
+    checkIfEnoughSpaceOnTarget: Boolean,
     onConflict: SingleFileConflictCallback<DocumentFile>
 ): Flow<SingleFileResult> = channelFlow {
     copyFileToMedia(
@@ -3462,7 +3487,7 @@ fun DocumentFile.moveFileToDownloadMedia(
         mode,
         updateInterval,
         this,
-        isFileSizeAllowed,
+        checkIfEnoughSpaceOnTarget,
         onConflict
     )
     close()
@@ -3475,7 +3500,7 @@ fun DocumentFile.moveFileToPictureMedia(
     fileDescription: FileDescription,
     mode: CreateMode = CreateMode.CREATE_NEW,
     updateInterval: Long = 500,
-    isFileSizeAllowed: IsEnoughSpace = isEnoughSpaceDefault,
+    checkIfEnoughSpaceOnTarget: Boolean,
     onConflict: SingleFileConflictCallback<DocumentFile>
 ): Flow<SingleFileResult> = channelFlow {
     copyFileToMedia(
@@ -3486,7 +3511,7 @@ fun DocumentFile.moveFileToPictureMedia(
         mode,
         updateInterval,
         this,
-        isFileSizeAllowed,
+        checkIfEnoughSpaceOnTarget,
         onConflict
     )
     close()
@@ -3500,9 +3525,16 @@ fun DocumentFile.moveFileTo(
     context: Context,
     targetFile: MediaFile,
     updateInterval: Long = 500,
-    isFileSizeAllowed: IsEnoughSpace = isEnoughSpaceDefault,
+    checkIfEnoughSpaceOnTarget: Boolean,
 ): Flow<SingleFileResult> = channelFlow {
-    copyToFolder(context, targetFile, true, updateInterval, this, isFileSizeAllowed)
+    copyToFolder(
+        context = context,
+        targetFile = targetFile,
+        deleteSourceFileWhenComplete = true,
+        updateInterval = updateInterval,
+        scope = this,
+        checkIfEnoughSpaceOnTarget = checkIfEnoughSpaceOnTarget
+    )
     close()
 }
 
@@ -3514,7 +3546,7 @@ fun DocumentFile.copyToFolder(
     context: Context,
     targetFile: MediaFile,
     updateInterval: Long = 500,
-    isFileSizeAllowed: IsEnoughSpace = isEnoughSpaceDefault,
+    checkIfEnoughSpaceOnTarget: Boolean,
 ): Flow<SingleFileResult> = channelFlow {
     copyToFolder(
         context = context,
@@ -3522,7 +3554,7 @@ fun DocumentFile.copyToFolder(
         deleteSourceFileWhenComplete = false,
         updateInterval = updateInterval,
         scope = this,
-        isFileSizeAllowed = isFileSizeAllowed
+        checkIfEnoughSpaceOnTarget = checkIfEnoughSpaceOnTarget
     )
     close()
 }
@@ -3532,14 +3564,16 @@ private fun DocumentFile.copyToFolder(
     targetFile: MediaFile,
     deleteSourceFileWhenComplete: Boolean,
     updateInterval: Long,
-    scope: ProducerScope<SingleFileResult>,
-    isFileSizeAllowed: IsEnoughSpace,
+    checkIfEnoughSpaceOnTarget: Boolean,
+    scope: ProducerScope<SingleFileResult>
 ) {
     if (simpleCheckSourceFile(scope)) return
 
-    if (!isFileSizeAllowed(DocumentFileCompat.getFreeSpace(context, PRIMARY), length())) {
-        scope.trySend(SingleFileResult.Error(SingleFileErrorCode.NO_SPACE_LEFT_ON_TARGET_PATH))
-        return
+    if (checkIfEnoughSpaceOnTarget) {
+        enoughSpaceOnStorage(context, PRIMARY, length())?.let {
+            scope.trySend(SingleFileResult.Error(it))
+            return
+        }
     }
 
     try {
@@ -3559,9 +3593,9 @@ private fun DocumentFile.copyToFolder(
 internal fun Exception.toSingleFileError(): SingleFileResult.Error {
     return SingleFileResult.Error(
         errorCode = when (this) {
-            is SecurityException -> SingleFileErrorCode.STORAGE_PERMISSION_DENIED
-            is InterruptedIOException, is InterruptedException -> SingleFileErrorCode.CANCELED
-            else -> SingleFileErrorCode.UNKNOWN_IO_ERROR
+            is SecurityException -> SingleFileError.StoragePermissionMissing
+            is InterruptedIOException, is InterruptedException -> SingleFileError.Cancelled
+            else -> SingleFileError.UnknownIOError
         },
         message = message
     )
@@ -3584,7 +3618,7 @@ private fun handleFileConflict(
         if (resolution == SingleFileConflictCallback.ConflictResolution.REPLACE) {
             scope.trySend(SingleFileResult.DeletingConflictedFile)
             if (!targetFile.forceDelete(context)) {
-                scope.trySend(SingleFileResult.Error(SingleFileErrorCode.CANNOT_CREATE_FILE_IN_TARGET))
+                scope.trySend(SingleFileResult.Error(SingleFileError.TargetNotWritable))
                 return SingleFileConflictCallback.ConflictResolution.SKIP
             }
         }

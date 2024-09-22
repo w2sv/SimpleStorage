@@ -44,18 +44,19 @@ sealed interface SingleFileResult {
     @JvmInline
     value class Completed(val file: FileWrapper) : SingleFileResult
 
-    data class Error(val errorCode: SingleFileErrorCode, val message: String? = null) :
+    data class Error(val errorCode: SingleFileError, val message: String? = null) :
         SingleFileResult
 }
 
-enum class SingleFileErrorCode {
-    STORAGE_PERMISSION_DENIED,
-    CANNOT_CREATE_FILE_IN_TARGET,
-    SOURCE_FILE_NOT_FOUND,
-    TARGET_FILE_NOT_FOUND,
-    TARGET_FOLDER_NOT_FOUND,
-    UNKNOWN_IO_ERROR,
-    CANCELED,
-    TARGET_FOLDER_CANNOT_HAVE_SAME_PATH_WITH_SOURCE_FOLDER,
-    NO_SPACE_LEFT_ON_TARGET_PATH
+sealed interface SingleFileError {
+    data object SourceNotReadable : SingleFileError
+    data object TargetNotWritable : SingleFileError
+    data object StoragePermissionMissing : SingleFileError
+    data object SourceNotFound : SingleFileError
+    data object TargetNotFound : SingleFileError
+    data object UnknownIOError : SingleFileError
+    data object Cancelled : SingleFileError
+    data object SourceAlreadyAtTarget : SingleFileError
+    data class NotEnoughSpaceOnTarget(val freeSpace: Long, val requiredSpace: Long) :
+        SingleFileError
 }

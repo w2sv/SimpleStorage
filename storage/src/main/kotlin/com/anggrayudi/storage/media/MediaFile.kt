@@ -54,7 +54,7 @@ import com.anggrayudi.storage.file.moveFileTo
 import com.anggrayudi.storage.file.openOutputStream
 import com.anggrayudi.storage.file.toDocumentFile
 import com.anggrayudi.storage.file.toSingleFileError
-import com.anggrayudi.storage.result.SingleFileErrorCode
+import com.anggrayudi.storage.result.SingleFileError
 import com.anggrayudi.storage.result.SingleFileResult
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.channels.ProducerScope
@@ -378,7 +378,7 @@ class MediaFile @JvmOverloads constructor(
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q && e is RecoverableSecurityException) {
             onWriteAccessDenied?.invoke(this, e.userAction.actionIntent.intentSender)
         } else {
-            scope?.trySend(SingleFileResult.Error(SingleFileErrorCode.STORAGE_PERMISSION_DENIED))
+            scope?.trySend(SingleFileResult.Error(SingleFileError.StoragePermissionMissing))
         }
     }
 
@@ -445,7 +445,7 @@ class MediaFile @JvmOverloads constructor(
         targetFolder: DocumentFile,
         fileDescription: FileDescription? = null,
         updateInterval: Long = 500,
-        isFileSizeAllowed: IsEnoughSpace = isEnoughSpaceDefault,
+        checkIfEnoughSpaceOnTarget: Boolean = true,
         onConflict: SingleFileConflictCallback<DocumentFile>
     ): Flow<SingleFileResult> = channelFlow {
         toDocumentFile()?.let {
@@ -455,16 +455,18 @@ class MediaFile @JvmOverloads constructor(
                     targetFolder,
                     fileDescription,
                     updateInterval,
-                    isFileSizeAllowed,
+                    checkIfEnoughSpaceOnTarget,
                     onConflict
                 )
             )
             return@channelFlow
         }
 
-        if (!enoughSpaceOnTarget(isFileSizeAllowed, targetFolder)) {
-            sendAndClose(SingleFileResult.Error(SingleFileErrorCode.NO_SPACE_LEFT_ON_TARGET_PATH))
-            return@channelFlow
+        if (checkIfEnoughSpaceOnTarget) {
+            enoughSpaceOnTarget(targetFolder)?.let {
+                sendAndClose(SingleFileResult.Error(it))
+                return@channelFlow
+            }
         }
 
         val targetDirectory = if (fileDescription?.subFolder.isNullOrEmpty()) {
@@ -476,7 +478,7 @@ class MediaFile @JvmOverloads constructor(
                 CreateMode.REUSE
             )
             if (directory == null) {
-                sendAndClose(SingleFileResult.Error(SingleFileErrorCode.CANNOT_CREATE_FILE_IN_TARGET))
+                sendAndClose(SingleFileResult.Error(SingleFileError.TargetNotWritable))
                 return@channelFlow
             } else {
                 directory
@@ -520,12 +522,15 @@ class MediaFile @JvmOverloads constructor(
         targetFolder: DocumentFile,
         fileDescription: FileDescription? = null,
         updateInterval: Long = 500,
-        isFileSizeAllowed: IsEnoughSpace = isEnoughSpaceDefault,
+        checkIfEnoughSpaceOnTarget: Boolean = true,
         onConflict: SingleFileConflictCallback<DocumentFile>
     ): Flow<SingleFileResult> = channelFlow {
-        if (!enoughSpaceOnTarget(isFileSizeAllowed, targetFolder)) {
-            sendAndClose(SingleFileResult.Error(SingleFileErrorCode.NO_SPACE_LEFT_ON_TARGET_PATH))
-            return@channelFlow
+
+        if (checkIfEnoughSpaceOnTarget) {
+            enoughSpaceOnTarget(targetFolder)?.let {
+                sendAndClose(SingleFileResult.Error(it))
+                return@channelFlow
+            }
         }
 
         toDocumentFile()?.let { documentFile ->
@@ -535,7 +540,7 @@ class MediaFile @JvmOverloads constructor(
                     targetFolder = targetFolder,
                     fileDescription = fileDescription,
                     updateInterval = updateInterval,
-                    isFileSizeAllowed = null,
+                    checkIfEnoughSpaceOnTarget = false,
                     onConflict = onConflict
                 )
             )
@@ -553,7 +558,7 @@ class MediaFile @JvmOverloads constructor(
             )
                 .also {
                     if (it == null) {
-                        sendAndClose(SingleFileResult.Error(SingleFileErrorCode.CANNOT_CREATE_FILE_IN_TARGET))
+                        sendAndClose(SingleFileResult.Error(SingleFileError.TargetNotWritable))
                         return@channelFlow
                     }
                 }!!
@@ -597,14 +602,14 @@ class MediaFile @JvmOverloads constructor(
     fun copyToFile(
         targetFile: DocumentFile,
         updateInterval: Long = 500,
-        isEnoughSpace: IsEnoughSpace? = isEnoughSpaceDefault,
+        checkIfEnoughSpaceOnTarget: Boolean = true,
+        checkIfTargetWritable: Boolean = true,
         deleteOnSuccess: Boolean
     ): Flow<SingleFileResult> = channelFlow {
 
-        // Check space
-        isEnoughSpace?.let {
-            if (!enoughSpaceOnTarget(it, targetFile)) {
-                sendAndClose(SingleFileResult.Error(SingleFileErrorCode.NO_SPACE_LEFT_ON_TARGET_PATH))
+        if (checkIfEnoughSpaceOnTarget) {
+            enoughSpaceOnTarget(targetFile)?.let {
+                sendAndClose(SingleFileResult.Error(it))
                 return@channelFlow
             }
         }
@@ -615,7 +620,8 @@ class MediaFile @JvmOverloads constructor(
                 targetFile = targetFile,
                 updateInterval = updateInterval,
                 scope = this,
-                deleteSourceFileOnSuccess = deleteOnSuccess
+                deleteSourceFileOnSuccess = deleteOnSuccess,
+                checkIfTargetWritable = checkIfTargetWritable
             )
             close()
             return@channelFlow
@@ -634,8 +640,8 @@ class MediaFile @JvmOverloads constructor(
         }
     }
 
-    private fun enoughSpaceOnTarget(isEnoughSpace: IsEnoughSpace, target: DocumentFile): Boolean =
-        target.hasEnoughSpace(context, length, isEnoughSpace)
+    private fun enoughSpaceOnTarget(target: DocumentFile): SingleFileError.NotEnoughSpaceOnTarget? =
+        target.hasEnoughSpace(context, length)
 
     private fun createTargetFile(
         targetDirectory: DocumentFile,
@@ -652,13 +658,13 @@ class MediaFile @JvmOverloads constructor(
             )
             val targetFolder = DocumentFileCompat.mkdirs(context, absolutePath)
             if (targetFolder == null) {
-                scope.trySend(SingleFileResult.Error(SingleFileErrorCode.STORAGE_PERMISSION_DENIED))
+                scope.trySend(SingleFileResult.Error(SingleFileError.StoragePermissionMissing))
                 return null
             }
 
             val targetFile = targetFolder.makeFile(context, fileName, mimeType, mode)
             if (targetFile == null) {
-                scope.trySend(SingleFileResult.Error(SingleFileErrorCode.CANNOT_CREATE_FILE_IN_TARGET))
+                scope.trySend(SingleFileResult.Error(SingleFileError.TargetNotWritable))
             } else {
                 return targetFile
             }
@@ -677,13 +683,13 @@ class MediaFile @JvmOverloads constructor(
     ) {
         val outputStream = targetFile.openOutputStream(context)
         if (outputStream == null) {
-            scope.trySend(SingleFileResult.Error(SingleFileErrorCode.TARGET_FILE_NOT_FOUND))
+            scope.trySend(SingleFileResult.Error(SingleFileError.TargetNotFound))
             return
         }
 
         val inputStream = openInputStream()
         if (inputStream == null) {
-            scope.trySend(SingleFileResult.Error(SingleFileErrorCode.SOURCE_FILE_NOT_FOUND))
+            scope.trySend(SingleFileResult.Error(SingleFileError.SourceNotFound))
             outputStream.closeQuietly()
             return
         }
@@ -752,7 +758,7 @@ class MediaFile @JvmOverloads constructor(
             }
             if (resolution == SingleFileConflictCallback.ConflictResolution.REPLACE) {
                 if (!targetFile.forceDelete(context)) {
-                    scope.trySend(SingleFileResult.Error(SingleFileErrorCode.CANNOT_CREATE_FILE_IN_TARGET))
+                    scope.trySend(SingleFileResult.Error(SingleFileError.TargetNotWritable))
                     return SingleFileConflictCallback.ConflictResolution.SKIP
                 }
             }
