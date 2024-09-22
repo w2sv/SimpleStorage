@@ -3001,7 +3001,7 @@ private fun DocumentFile.isCopyable(
         .let { if (it.isDownloadsDocument) it.toWritableDownloadsDocumentFile(context) else it }
         .also {
             if (it == null) {
-                scope.trySend(SingleFileResult.Error(SingleFileError.StoragePermissionMissing))
+                scope.trySend(SingleFileResult.Error(SingleFileError.TargetNotWritable))
             }
         }
 }
@@ -3046,7 +3046,7 @@ private fun DocumentFile.isCopyable(
         .let { if (it.isDownloadsDocument) it.toWritableDownloadsDocumentFile(context) else it }
         .also {
             if (it == null) {
-                scope.trySend(SingleFileResult.Error(SingleFileError.StoragePermissionMissing))
+                scope.trySend(SingleFileResult.Error(SingleFileError.TargetNotWritable))
             }
         }
 }
@@ -3258,7 +3258,7 @@ private fun DocumentFile.moveFileTo(
     if (isExternalStorageManager(context) && getStorageId(context) == targetStorageId) {
         val sourceFile = toRawFile(context)
         if (sourceFile == null) {
-            scope.trySend(SingleFileResult.Error(SingleFileError.StoragePermissionMissing))
+            scope.trySend(SingleFileResult.Error(SingleFileError.SourceNotReadable))
             return
         }
         writableTargetFolder.toRawFile(context)?.let { destinationFolder ->
@@ -3302,7 +3302,7 @@ private fun DocumentFile.moveFileTo(
             }
         }
     } catch (e: Throwable) {
-        scope.trySend(SingleFileResult.Error(SingleFileError.StoragePermissionMissing))
+        scope.trySend(SingleFileResult.Error(SingleFileError.StoragePermissionMissing()))
         return
     }
 
@@ -3338,7 +3338,7 @@ private fun DocumentFile.simpleCheckSourceFile(scope: ProducerScope<SingleFileRe
         return true
     }
     if (!canRead()) {
-        scope.trySend(SingleFileResult.Error(SingleFileError.StoragePermissionMissing))
+        scope.trySend(SingleFileResult.Error(SingleFileError.SourceNotReadable))
         return true
     }
     return false
@@ -3365,7 +3365,7 @@ private fun DocumentFile.copyFileToMedia(
     )
     if (Build.VERSION.SDK_INT < Build.VERSION_CODES.Q || deleteSourceFileWhenComplete && !isRawFile && publicFolder?.isTreeDocumentFile == true) {
         if (publicFolder == null) {
-            scope.trySend(SingleFileResult.Error(SingleFileError.StoragePermissionMissing))
+            scope.trySend(SingleFileResult.Error(SingleFileError.StoragePermissionMissing()))
             return
         }
         publicFolder.child(context, fileDescription.fullName)?.let {
@@ -3593,7 +3593,7 @@ private fun DocumentFile.copyToFolder(
 internal fun Exception.toSingleFileError(): SingleFileResult.Error {
     return SingleFileResult.Error(
         errorCode = when (this) {
-            is SecurityException -> SingleFileError.StoragePermissionMissing
+            is SecurityException -> SingleFileError.StoragePermissionMissing()
             is InterruptedIOException, is InterruptedException -> SingleFileError.Cancelled
             else -> SingleFileError.UnknownIOError
         },

@@ -49,9 +49,9 @@ sealed interface SingleFileResult {
 }
 
 sealed interface SingleFileError {
-    data object SourceNotReadable : SingleFileError
-    data object TargetNotWritable : SingleFileError
-    data object StoragePermissionMissing : SingleFileError
+    open class StoragePermissionMissing : SingleFileError
+    data object SourceNotReadable : StoragePermissionMissing()
+    data object TargetNotWritable : StoragePermissionMissing()
     data object SourceNotFound : SingleFileError
     data object TargetNotFound : SingleFileError
     data object UnknownIOError : SingleFileError

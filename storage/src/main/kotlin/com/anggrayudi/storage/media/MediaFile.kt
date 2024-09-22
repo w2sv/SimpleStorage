@@ -35,7 +35,6 @@ import com.anggrayudi.storage.file.CreateMode
 import com.anggrayudi.storage.file.DocumentFileCompat
 import com.anggrayudi.storage.file.DocumentFileCompat.removeForbiddenCharsFromFilename
 import com.anggrayudi.storage.file.FileSize
-import com.anggrayudi.storage.file.IsEnoughSpace
 import com.anggrayudi.storage.file.MimeType
 import com.anggrayudi.storage.file.child
 import com.anggrayudi.storage.file.copyToFile
@@ -46,7 +45,6 @@ import com.anggrayudi.storage.file.getBasePath
 import com.anggrayudi.storage.file.getStorageId
 import com.anggrayudi.storage.file.hasEnoughSpace
 import com.anggrayudi.storage.file.isEmpty
-import com.anggrayudi.storage.file.isEnoughSpaceDefault
 import com.anggrayudi.storage.file.makeFile
 import com.anggrayudi.storage.file.makeFolder
 import com.anggrayudi.storage.file.mimeType
@@ -378,7 +376,7 @@ class MediaFile @JvmOverloads constructor(
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q && e is RecoverableSecurityException) {
             onWriteAccessDenied?.invoke(this, e.userAction.actionIntent.intentSender)
         } else {
-            scope?.trySend(SingleFileResult.Error(SingleFileError.StoragePermissionMissing))
+            scope?.trySend(SingleFileResult.Error(SingleFileError.StoragePermissionMissing()))
         }
     }
 
@@ -658,7 +656,7 @@ class MediaFile @JvmOverloads constructor(
             )
             val targetFolder = DocumentFileCompat.mkdirs(context, absolutePath)
             if (targetFolder == null) {
-                scope.trySend(SingleFileResult.Error(SingleFileError.StoragePermissionMissing))
+                scope.trySend(SingleFileResult.Error(SingleFileError.TargetNotWritable))
                 return null
             }
 
