@@ -1,11 +1,8 @@
 plugins {
     alias(libs.plugins.kotlin.android)
     alias(libs.plugins.android.library)
+    alias(libs.plugins.ktlint)
     `maven-publish`
-}
-
-kotlin {
-    jvmToolchain(17)
 }
 
 android {
@@ -25,15 +22,12 @@ android {
     }
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_17
-        targetCompatibility = JavaVersion.VERSION_17
+    }
+    kotlinOptions {
+        jvmTarget = "17"
     }
     defaultConfig {
         consumerProguardFiles("consumer-rules.pro")
-    }
-    buildTypes {
-        getByName("release") {
-            isMinifyEnabled = false
-        }
     }
     buildFeatures {
         buildConfig = true
