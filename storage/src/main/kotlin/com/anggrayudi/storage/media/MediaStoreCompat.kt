@@ -25,9 +25,9 @@ import com.anggrayudi.storage.file.child
 import com.anggrayudi.storage.file.createNewFileIfPossible
 import com.anggrayudi.storage.file.recreateFile
 import com.anggrayudi.storage.file.search
+import java.io.File
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.runBlocking
-import java.io.File
 
 /**
  * Created on 05/09/20
@@ -166,15 +166,17 @@ object MediaStoreCompat {
                             }
                             .filter {
                                 val name = it.name
-                                if (name.isNullOrEmpty() || MimeType.getExtensionFromFileName(name) != ext)
+                                if (name.isNullOrEmpty() || MimeType.getExtensionFromFileName(name) != ext) {
                                     false
-                                else {
-                                    name.startsWith(prefix) && (DocumentFileCompat.FILE_NAME_DUPLICATION_REGEX_WITH_EXTENSION.matches(
-                                        name
-                                    )
-                                            || DocumentFileCompat.FILE_NAME_DUPLICATION_REGEX_WITHOUT_EXTENSION.matches(
-                                        name
-                                    ))
+                                } else {
+                                    name.startsWith(prefix) && (
+                                        DocumentFileCompat.FILE_NAME_DUPLICATION_REGEX_WITH_EXTENSION.matches(
+                                            name
+                                        ) ||
+                                            DocumentFileCompat.FILE_NAME_DUPLICATION_REGEX_WITHOUT_EXTENSION.matches(
+                                                name
+                                            )
+                                        )
                                 }
                             }
                             // Use existing empty media file
@@ -202,7 +204,9 @@ object MediaStoreCompat {
                 }
                 if (media.createNewFileIfPossible()) {
                     if (media.canRead()) MediaFile(context, media) else null
-                } else null
+                } else {
+                    null
+                }
             } else {
                 null
             }
@@ -242,17 +246,29 @@ object MediaStoreCompat {
     }
 
     @JvmStatic
-    fun fromMediaId(context: Context, mediaType: MediaType, id: String): MediaFile? {
+    fun fromMediaId(
+        context: Context,
+        mediaType: MediaType,
+        id: String
+    ): MediaFile? {
         return mediaType.writeUri?.let { MediaFile(context, it.buildUpon().appendPath(id).build()) }
     }
 
     @JvmStatic
-    fun fromMediaId(context: Context, mediaType: MediaType, id: Long): MediaFile? {
+    fun fromMediaId(
+        context: Context,
+        mediaType: MediaType,
+        id: Long
+    ): MediaFile? {
         return fromMediaId(context, mediaType, id.toString())
     }
 
     @JvmStatic
-    fun fromFileName(context: Context, mediaType: MediaType, name: String): MediaFile? {
+    fun fromFileName(
+        context: Context,
+        mediaType: MediaType,
+        name: String
+    ): MediaFile? {
         return if (Build.VERSION.SDK_INT < Build.VERSION_CODES.Q) {
             File(PublicDirectory.DOWNLOADS.file, name).let {
                 if (it.isFile && it.canRead()) MediaFile(context, it) else null
@@ -276,7 +292,11 @@ object MediaStoreCompat {
      * @return `null` if base path does not contain relative path or the media is not found
      */
     @JvmStatic
-    fun fromBasePath(context: Context, mediaType: MediaType, basePath: String): MediaFile? {
+    fun fromBasePath(
+        context: Context,
+        mediaType: MediaType,
+        basePath: String
+    ): MediaFile? {
         val cleanBasePath = basePath.removeForbiddenCharsFromFilename().trimFileSeparator()
         return if (Build.VERSION.SDK_INT < Build.VERSION_CODES.Q) {
             File(
@@ -303,15 +323,16 @@ object MediaStoreCompat {
     }
 
     @RequiresApi(Build.VERSION_CODES.Q)
-    private fun mediaTypeFromRelativePath(cleanRelativePath: String) = when (cleanRelativePath) {
-        Environment.DIRECTORY_DCIM, Environment.DIRECTORY_PICTURES -> MediaType.IMAGE
-        Environment.DIRECTORY_MOVIES, Environment.DIRECTORY_DCIM -> MediaType.VIDEO
-        Environment.DIRECTORY_MUSIC, Environment.DIRECTORY_PODCASTS, Environment.DIRECTORY_RINGTONES,
-        Environment.DIRECTORY_ALARMS, Environment.DIRECTORY_NOTIFICATIONS -> MediaType.AUDIO
+    private fun mediaTypeFromRelativePath(cleanRelativePath: String) =
+        when (cleanRelativePath) {
+            Environment.DIRECTORY_DCIM, Environment.DIRECTORY_PICTURES -> MediaType.IMAGE
+            Environment.DIRECTORY_MOVIES, Environment.DIRECTORY_DCIM -> MediaType.VIDEO
+            Environment.DIRECTORY_MUSIC, Environment.DIRECTORY_PODCASTS, Environment.DIRECTORY_RINGTONES,
+            Environment.DIRECTORY_ALARMS, Environment.DIRECTORY_NOTIFICATIONS -> MediaType.AUDIO
 
-        Environment.DIRECTORY_DOWNLOADS -> MediaType.DOWNLOADS
-        else -> null
-    }
+            Environment.DIRECTORY_DOWNLOADS -> MediaType.DOWNLOADS
+            else -> null
+        }
 
     /**
      * @see MediaStore.MediaColumns.RELATIVE_PATH
@@ -324,41 +345,46 @@ object MediaStoreCompat {
      * @see MediaStore.MediaColumns.RELATIVE_PATH
      */
     @JvmStatic
-    fun fromRelativePath(context: Context, relativePath: String): List<MediaFile> = runBlocking {
-        val cleanRelativePath = relativePath.trimFileSeparator()
-        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.Q) {
-            DocumentFile.fromFile(
-                File(
-                    Environment.getExternalStorageDirectory(),
-                    cleanRelativePath
+    fun fromRelativePath(context: Context, relativePath: String): List<MediaFile> =
+        runBlocking {
+            val cleanRelativePath = relativePath.trimFileSeparator()
+            if (Build.VERSION.SDK_INT < Build.VERSION_CODES.Q) {
+                DocumentFile.fromFile(
+                    File(
+                        Environment.getExternalStorageDirectory(),
+                        cleanRelativePath
+                    )
                 )
-            )
-                .search(true, DocumentFileType.FILE)
-                .first()
-                .map { MediaFile(context, File(it.uri.path!!)) }
-        } else {
-            val mediaType =
-                mediaTypeFromRelativePath(cleanRelativePath) ?: return@runBlocking emptyList()
-            val relativePathWithSlashSuffix = relativePath.trimEnd('/') + '/'
-            val selection = "${MediaStore.MediaColumns.RELATIVE_PATH} IN(?, ?)"
-            val selectionArgs = arrayOf(relativePathWithSlashSuffix, cleanRelativePath)
-            context.contentResolver.query(
-                mediaType.readUri ?: return@runBlocking emptyList(),
-                arrayOf(BaseColumns._ID),
-                selection,
-                selectionArgs,
-                null
-            )?.use {
-                fromCursorToMediaFiles(context, mediaType, it)
-            }.orEmpty()
+                    .search(true, DocumentFileType.FILE)
+                    .first()
+                    .map { MediaFile(context, File(it.uri.path!!)) }
+            } else {
+                val mediaType =
+                    mediaTypeFromRelativePath(cleanRelativePath) ?: return@runBlocking emptyList()
+                val relativePathWithSlashSuffix = relativePath.trimEnd('/') + '/'
+                val selection = "${MediaStore.MediaColumns.RELATIVE_PATH} IN(?, ?)"
+                val selectionArgs = arrayOf(relativePathWithSlashSuffix, cleanRelativePath)
+                context.contentResolver.query(
+                    mediaType.readUri ?: return@runBlocking emptyList(),
+                    arrayOf(BaseColumns._ID),
+                    selection,
+                    selectionArgs,
+                    null
+                )?.use {
+                    fromCursorToMediaFiles(context, mediaType, it)
+                }.orEmpty()
+            }
         }
-    }
 
     /**
      * @see MediaStore.MediaColumns.RELATIVE_PATH
      */
     @JvmStatic
-    fun fromRelativePath(context: Context, relativePath: String, name: String): MediaFile? =
+    fun fromRelativePath(
+        context: Context,
+        relativePath: String,
+        name: String
+    ): MediaFile? =
         runBlocking {
             val cleanRelativePath = relativePath.trimFileSeparator()
             if (Build.VERSION.SDK_INT < Build.VERSION_CODES.Q) {
@@ -396,34 +422,39 @@ object MediaStoreCompat {
         context: Context,
         mediaType: MediaType,
         containsName: String
-    ): List<MediaFile> = runBlocking {
-        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.Q) {
-            mediaType.directories.map { directory ->
-                DocumentFile.fromFile(directory)
-                    .search(
-                        true,
-                        regex = Regex("^.*$containsName.*\$"),
-                        mimeTypes = arrayOf(mediaType.mimeType)
-                    )
-                    .first()
-                    .map { MediaFile(context, File(it.uri.path!!)) }
-            }.flatten()
-        } else {
-            val selection = "${MediaStore.MediaColumns.DISPLAY_NAME} LIKE '%$containsName%'"
-            context.contentResolver.query(
-                mediaType.readUri ?: return@runBlocking emptyList(),
-                arrayOf(BaseColumns._ID),
-                selection,
-                null,
-                null
-            )?.use {
-                fromCursorToMediaFiles(context, mediaType, it)
-            }.orEmpty()
+    ): List<MediaFile> =
+        runBlocking {
+            if (Build.VERSION.SDK_INT < Build.VERSION_CODES.Q) {
+                mediaType.directories.map { directory ->
+                    DocumentFile.fromFile(directory)
+                        .search(
+                            true,
+                            regex = Regex("^.*$containsName.*\$"),
+                            mimeTypes = arrayOf(mediaType.mimeType)
+                        )
+                        .first()
+                        .map { MediaFile(context, File(it.uri.path!!)) }
+                }.flatten()
+            } else {
+                val selection = "${MediaStore.MediaColumns.DISPLAY_NAME} LIKE '%$containsName%'"
+                context.contentResolver.query(
+                    mediaType.readUri ?: return@runBlocking emptyList(),
+                    arrayOf(BaseColumns._ID),
+                    selection,
+                    null,
+                    null
+                )?.use {
+                    fromCursorToMediaFiles(context, mediaType, it)
+                }.orEmpty()
+            }
         }
-    }
 
     @JvmStatic
-    fun fromMimeType(context: Context, mediaType: MediaType, mimeType: String): List<MediaFile> =
+    fun fromMimeType(
+        context: Context,
+        mediaType: MediaType,
+        mimeType: String
+    ): List<MediaFile> =
         runBlocking {
             if (Build.VERSION.SDK_INT < Build.VERSION_CODES.Q) {
                 mediaType.directories.map { directory ->
@@ -448,26 +479,27 @@ object MediaStoreCompat {
         }
 
     @JvmStatic
-    fun fromMediaType(context: Context, mediaType: MediaType): List<MediaFile> = runBlocking {
-        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.Q) {
-            mediaType.directories.map { directory ->
-                DocumentFile.fromFile(directory)
-                    .search(true, mimeTypes = arrayOf(mediaType.mimeType))
-                    .first()
-                    .map { MediaFile(context, File(it.uri.path!!)) }
-            }.flatten()
-        } else {
-            context.contentResolver.query(
-                mediaType.readUri ?: return@runBlocking emptyList(),
-                arrayOf(BaseColumns._ID),
-                null,
-                null,
-                null
-            )?.use {
-                fromCursorToMediaFiles(context, mediaType, it)
-            }.orEmpty()
+    fun fromMediaType(context: Context, mediaType: MediaType): List<MediaFile> =
+        runBlocking {
+            if (Build.VERSION.SDK_INT < Build.VERSION_CODES.Q) {
+                mediaType.directories.map { directory ->
+                    DocumentFile.fromFile(directory)
+                        .search(true, mimeTypes = arrayOf(mediaType.mimeType))
+                        .first()
+                        .map { MediaFile(context, File(it.uri.path!!)) }
+                }.flatten()
+            } else {
+                context.contentResolver.query(
+                    mediaType.readUri ?: return@runBlocking emptyList(),
+                    arrayOf(BaseColumns._ID),
+                    null,
+                    null,
+                    null
+                )?.use {
+                    fromCursorToMediaFiles(context, mediaType, it)
+                }.orEmpty()
+            }
         }
-    }
 
     private fun fromCursorToMediaFiles(
         context: Context,
@@ -493,6 +525,8 @@ object MediaStoreCompat {
     ): MediaFile? {
         return if (cursor.moveToFirst()) {
             cursor.getString(BaseColumns._ID)?.let { fromMediaId(context, mediaType, it) }
-        } else null
+        } else {
+            null
+        }
     }
 }

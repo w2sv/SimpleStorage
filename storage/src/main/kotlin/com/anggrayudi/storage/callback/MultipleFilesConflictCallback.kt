@@ -14,7 +14,10 @@ import kotlinx.coroutines.GlobalScope
  * Created on 31/05/21
  * @author Anggrayudi H
  */
-abstract class MultipleFilesConflictCallback @OptIn(DelicateCoroutinesApi::class) @JvmOverloads constructor(
+abstract class MultipleFilesConflictCallback
+@OptIn(DelicateCoroutinesApi::class)
+@JvmOverloads
+constructor(
     var uiScope: CoroutineScope = GlobalScope
 ) {
     /**
@@ -24,10 +27,7 @@ abstract class MultipleFilesConflictCallback @OptIn(DelicateCoroutinesApi::class
      * * [FolderErrorCode.TARGET_FOLDER_CANNOT_HAVE_SAME_PATH_WITH_SOURCE_FOLDER]
      */
     @UiThread
-    open fun onInvalidSourceFilesFound(
-        invalidSourceFiles: Map<DocumentFile, FolderErrorCode>,
-        action: InvalidSourceFilesAction
-    ) {
+    open fun onInvalidSourceFilesFound(invalidSourceFiles: Map<DocumentFile, FolderErrorCode>, action: InvalidSourceFilesAction) {
         action.confirmResolution(false)
     }
 

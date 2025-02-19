@@ -14,7 +14,10 @@ import kotlinx.coroutines.GlobalScope
  * Created on 3/1/21
  * @author Anggrayudi H
  */
-abstract class SingleFolderConflictCallback @OptIn(DelicateCoroutinesApi::class) @JvmOverloads constructor(
+abstract class SingleFolderConflictCallback
+@OptIn(DelicateCoroutinesApi::class)
+@JvmOverloads
+constructor(
     var uiScope: CoroutineScope = GlobalScope
 ) {
 
@@ -85,18 +88,20 @@ abstract class SingleFolderConflictCallback @OptIn(DelicateCoroutinesApi::class)
         SKIP;
 
         @RestrictTo(RestrictTo.Scope.LIBRARY)
-        fun toCreateMode() = when (this) {
-            REPLACE -> CreateMode.REPLACE
-            MERGE -> CreateMode.REUSE
-            else -> CreateMode.CREATE_NEW
-        }
+        fun toCreateMode() =
+            when (this) {
+                REPLACE -> CreateMode.REPLACE
+                MERGE -> CreateMode.REUSE
+                else -> CreateMode.CREATE_NEW
+            }
 
         @RestrictTo(RestrictTo.Scope.LIBRARY)
-        fun toFileConflictResolution() = when (this) {
-            REPLACE -> SingleFileConflictCallback.ConflictResolution.REPLACE
-            CREATE_NEW -> SingleFileConflictCallback.ConflictResolution.CREATE_NEW
-            else -> SingleFileConflictCallback.ConflictResolution.SKIP
-        }
+        fun toFileConflictResolution() =
+            when (this) {
+                REPLACE -> SingleFileConflictCallback.ConflictResolution.REPLACE
+                CREATE_NEW -> SingleFileConflictCallback.ConflictResolution.CREATE_NEW
+                else -> SingleFileConflictCallback.ConflictResolution.SKIP
+            }
     }
 
     class FileConflict(

@@ -73,20 +73,26 @@ interface FileWrapper {
         override val mimeType: String
             get() = mediaFile.mimeType
 
-        override fun isEmpty(context: Context): Boolean = mediaFile.isEmpty
+        override fun isEmpty(context: Context): Boolean =
+            mediaFile.isEmpty
 
-        override fun getAbsolutePath(context: Context): String = mediaFile.absolutePath
+        override fun getAbsolutePath(context: Context): String =
+            mediaFile.absolutePath
 
-        override fun getBasePath(context: Context): String = mediaFile.basePath
+        override fun getBasePath(context: Context): String =
+            mediaFile.basePath
 
-        override fun getRelativePath(context: Context): String = mediaFile.relativePath
+        override fun getRelativePath(context: Context): String =
+            mediaFile.relativePath
 
         override fun openOutputStream(context: Context, append: Boolean): OutputStream? =
             mediaFile.openOutputStream(append)
 
-        override fun openInputStream(context: Context): InputStream? = mediaFile.openInputStream()
+        override fun openInputStream(context: Context): InputStream? =
+            mediaFile.openInputStream()
 
-        override fun delete(): Boolean = mediaFile.delete()
+        override fun delete(): Boolean =
+            mediaFile.delete()
     }
 
     @JvmInline
@@ -107,12 +113,14 @@ interface FileWrapper {
         override val mimeType: String?
             get() = documentFile.mimeTypeByFileName
 
-        override fun isEmpty(context: Context): Boolean = documentFile.isEmpty(context)
+        override fun isEmpty(context: Context): Boolean =
+            documentFile.isEmpty(context)
 
         override fun getAbsolutePath(context: Context): String =
             documentFile.getAbsolutePath(context)
 
-        override fun getBasePath(context: Context): String = documentFile.getBasePath(context)
+        override fun getBasePath(context: Context): String =
+            documentFile.getBasePath(context)
 
         override fun getRelativePath(context: Context): String =
             documentFile.getRelativePath(context)
@@ -123,7 +131,8 @@ interface FileWrapper {
         override fun openInputStream(context: Context): InputStream? =
             documentFile.openInputStream(context)
 
-        override fun delete(): Boolean = documentFile.delete()
+        override fun delete(): Boolean =
+            documentFile.delete()
 
         companion object {
 

@@ -54,16 +54,16 @@ import com.anggrayudi.storage.file.toDocumentFile
 import com.anggrayudi.storage.file.toSingleFileError
 import com.anggrayudi.storage.result.SingleFileError
 import com.anggrayudi.storage.result.SingleFileResult
-import kotlinx.coroutines.Job
-import kotlinx.coroutines.channels.ProducerScope
-import kotlinx.coroutines.flow.Flow
-import kotlinx.coroutines.flow.channelFlow
 import java.io.File
 import java.io.FileInputStream
 import java.io.FileOutputStream
 import java.io.IOException
 import java.io.InputStream
 import java.io.OutputStream
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.channels.ProducerScope
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.channelFlow
 
 typealias OnWriteAccessDenied = (mediaFile: MediaFile, sender: IntentSender) -> Unit
 
@@ -192,7 +192,13 @@ class MediaFile @JvmOverloads constructor(
             ?: getColumnInfoLong(MediaStore.MediaColumns.DATE_MODIFIED)
 
     val owner: String?
-        get() = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) getColumnInfoString(MediaStore.MediaColumns.OWNER_PACKAGE_NAME) else null
+        get() = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+            getColumnInfoString(
+                MediaStore.MediaColumns.OWNER_PACKAGE_NAME
+            )
+        } else {
+            null
+        }
 
     /**
      * Check if this media is owned by your app.
@@ -206,7 +212,8 @@ class MediaFile @JvmOverloads constructor(
      * @see toDocumentFile
      */
     @Deprecated("Accessing files with java.io.File only works on app private directory since Android 10.")
-    fun toRawFile() = if (isRawFile) uri.path?.let { File(it) } else null
+    fun toRawFile() =
+        if (isRawFile) uri.path?.let { File(it) } else null
 
     fun toDocumentFile(): DocumentFile? =
         absolutePath
@@ -239,7 +246,9 @@ class MediaFile @JvmOverloads constructor(
                         )?.use { cursor ->
                             if (cursor.moveToFirst()) {
                                 cursor.getString(MediaStore.MediaColumns.DATA)
-                            } else ""
+                            } else {
+                                ""
+                            }
                         }.orEmpty()
                     } catch (e: Exception) {
                         ""
@@ -261,7 +270,9 @@ class MediaFile @JvmOverloads constructor(
                                 "${SimpleStorage.externalStoragePath}/$relativePath/$name".trimEnd(
                                     '/'
                                 ).replaceCompletely("//", "/")
-                            } else ""
+                            } else {
+                                ""
+                            }
                         }.orEmpty()
                 }
             }
@@ -302,7 +313,9 @@ class MediaFile @JvmOverloads constructor(
                                     SimpleStorage.externalStoragePath,
                                     ""
                                 ).trimFileSeparator() + "/"
-                            } else ""
+                            } else {
+                                ""
+                            }
                         }.orEmpty()
                     } catch (e: Exception) {
                         ""
@@ -315,7 +328,9 @@ class MediaFile @JvmOverloads constructor(
                         ?.use { cursor ->
                             if (cursor.moveToFirst()) {
                                 cursor.getString(MediaStore.MediaColumns.RELATIVE_PATH)
-                            } else ""
+                            } else {
+                                ""
+                            }
                         }.orEmpty()
                 }
             }
@@ -326,11 +341,13 @@ class MediaFile @JvmOverloads constructor(
         val file = toRawFile()
         return if (file != null) {
             file.delete() || !file.exists()
-        } else try {
-            context.contentResolver.delete(uri, null, null) > 0
-        } catch (e: SecurityException) {
-            handleSecurityException(e)
-            false
+        } else {
+            try {
+                context.contentResolver.delete(uri, null, null) > 0
+            } catch (e: SecurityException) {
+                handleSecurityException(e)
+                false
+            }
         }
     }
 
@@ -358,6 +375,7 @@ class MediaFile @JvmOverloads constructor(
     var isPending: Boolean
         @RequiresApi(Build.VERSION_CODES.Q)
         get() = getColumnInfoInt(MediaStore.MediaColumns.IS_PENDING) == 1
+
         @RequiresApi(Build.VERSION_CODES.Q)
         set(value) {
             val contentValues =
@@ -369,10 +387,7 @@ class MediaFile @JvmOverloads constructor(
             }
         }
 
-    private fun handleSecurityException(
-        e: SecurityException,
-        scope: ProducerScope<SingleFileResult>? = null,
-    ) {
+    private fun handleSecurityException(e: SecurityException, scope: ProducerScope<SingleFileResult>? = null) {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q && e is RecoverableSecurityException) {
             onWriteAccessDenied?.invoke(this, e.userAction.actionIntent.intentSender)
         } else {
@@ -381,16 +396,21 @@ class MediaFile @JvmOverloads constructor(
     }
 
     @UiThread
-    fun openFileIntent(authority: String) = Intent(Intent.ACTION_VIEW)
-        .setData(
-            if (isRawFile) FileProvider.getUriForFile(
-                context,
-                authority,
-                File(uri.path!!)
-            ) else uri
-        )
-        .addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
-        .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+    fun openFileIntent(authority: String) =
+        Intent(Intent.ACTION_VIEW)
+            .setData(
+                if (isRawFile) {
+                    FileProvider.getUriForFile(
+                        context,
+                        authority,
+                        File(uri.path!!)
+                    )
+                } else {
+                    uri
+                }
+            )
+            .addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+            .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
 
     /**
      * @param append if `false` and the file already exists, it will recreate the file.
@@ -445,75 +465,79 @@ class MediaFile @JvmOverloads constructor(
         updateInterval: Long = 500,
         checkIfEnoughSpaceOnTarget: Boolean = true,
         onConflict: SingleFileConflictCallback<DocumentFile>
-    ): Flow<SingleFileResult> = channelFlow {
-        toDocumentFile()?.let {
-            sendAll(
-                it.moveFileTo(
-                    context,
-                    targetFolder,
-                    fileDescription,
-                    updateInterval,
-                    checkIfEnoughSpaceOnTarget,
-                    onConflict
+    ): Flow<SingleFileResult> =
+        channelFlow {
+            toDocumentFile()?.let {
+                sendAll(
+                    it.moveFileTo(
+                        context,
+                        targetFolder,
+                        fileDescription,
+                        updateInterval,
+                        checkIfEnoughSpaceOnTarget,
+                        onConflict
+                    )
                 )
-            )
-            return@channelFlow
-        }
-
-        if (checkIfEnoughSpaceOnTarget) {
-            enoughSpaceOnTarget(targetFolder)?.let {
-                sendAndClose(SingleFileResult.Error(it))
                 return@channelFlow
             }
-        }
 
-        val targetDirectory = if (fileDescription?.subFolder.isNullOrEmpty()) {
-            targetFolder
-        } else {
-            val directory = targetFolder.makeFolder(
-                context,
-                fileDescription?.subFolder.orEmpty(),
-                CreateMode.REUSE
-            )
-            if (directory == null) {
-                sendAndClose(SingleFileResult.Error(SingleFileError.TargetNotWritable))
-                return@channelFlow
+            if (checkIfEnoughSpaceOnTarget) {
+                enoughSpaceOnTarget(targetFolder)?.let {
+                    sendAndClose(SingleFileResult.Error(it))
+                    return@channelFlow
+                }
+            }
+
+            val targetDirectory = if (fileDescription?.subFolder.isNullOrEmpty()) {
+                targetFolder
             } else {
-                directory
+                val directory = targetFolder.makeFolder(
+                    context,
+                    fileDescription?.subFolder.orEmpty(),
+                    CreateMode.REUSE
+                )
+                if (directory == null) {
+                    sendAndClose(SingleFileResult.Error(SingleFileError.TargetNotWritable))
+                    return@channelFlow
+                } else {
+                    directory
+                }
             }
-        }
 
-        val cleanFileName = MimeType.getFullFileName(
-            fileDescription?.name ?: name.orEmpty(),
-            fileDescription?.mimeType ?: type
-        )
-            .removeForbiddenCharsFromFilename().trimFileSeparator()
-        val conflictResolution =
-            handleFileConflict(targetDirectory, cleanFileName, this, onConflict)
-        if (conflictResolution == SingleFileConflictCallback.ConflictResolution.SKIP) {
-            close()
-            return@channelFlow
-        }
-
-        try {
-            val targetFile = createTargetFile(
-                targetDirectory, cleanFileName, fileDescription?.mimeType ?: type,
-                conflictResolution.toCreateMode(), this
+            val cleanFileName = MimeType.getFullFileName(
+                fileDescription?.name ?: name.orEmpty(),
+                fileDescription?.mimeType ?: type
             )
-            if (targetFile == null) {
+                .removeForbiddenCharsFromFilename().trimFileSeparator()
+            val conflictResolution =
+                handleFileConflict(targetDirectory, cleanFileName, this, onConflict)
+            if (conflictResolution == SingleFileConflictCallback.ConflictResolution.SKIP) {
                 close()
                 return@channelFlow
             }
-            createFileStreams(targetFile, this) { inputStream, outputStream ->
-                copyFileStream(inputStream, outputStream, targetFile, updateInterval, true, this)
+
+            try {
+                val targetFile = createTargetFile(
+                    targetDirectory,
+                    cleanFileName,
+                    fileDescription?.mimeType ?: type,
+                    conflictResolution.toCreateMode(),
+                    this
+                )
+                if (targetFile == null) {
+                    close()
+                    return@channelFlow
+                }
+                createFileStreams(targetFile, this) { inputStream, outputStream ->
+                    copyFileStream(inputStream, outputStream, targetFile, updateInterval, true, this)
+                }
+            } catch (e: SecurityException) {
+                handleSecurityException(e, this)
+            } catch (e: Exception) {
+                trySend(e.toSingleFileError())
             }
-        } catch (e: SecurityException) {
-            handleSecurityException(e, this)
-        } catch (e: Exception) {
-            trySend(e.toSingleFileError())
+            close()
         }
-        close()
-    }
 
     @WorkerThread
     fun copyToFolder(
@@ -522,79 +546,82 @@ class MediaFile @JvmOverloads constructor(
         updateInterval: Long = 500,
         checkIfEnoughSpaceOnTarget: Boolean = true,
         onConflict: SingleFileConflictCallback<DocumentFile>
-    ): Flow<SingleFileResult> = channelFlow {
+    ): Flow<SingleFileResult> =
+        channelFlow {
+            if (checkIfEnoughSpaceOnTarget) {
+                enoughSpaceOnTarget(targetFolder)?.let {
+                    sendAndClose(SingleFileResult.Error(it))
+                    return@channelFlow
+                }
+            }
 
-        if (checkIfEnoughSpaceOnTarget) {
-            enoughSpaceOnTarget(targetFolder)?.let {
-                sendAndClose(SingleFileResult.Error(it))
+            toDocumentFile()?.let { documentFile ->
+                sendAll(
+                    documentFile.copyToFolder(
+                        context = context,
+                        targetFolder = targetFolder,
+                        fileDescription = fileDescription,
+                        updateInterval = updateInterval,
+                        checkIfEnoughSpaceOnTarget = false,
+                        onConflict = onConflict
+                    )
+                )
+                close()
                 return@channelFlow
             }
-        }
 
-        toDocumentFile()?.let { documentFile ->
-            sendAll(
-                documentFile.copyToFolder(
+            val targetDirectory = if (fileDescription?.subFolder.isNullOrEmpty()) {
+                targetFolder
+            } else {
+                targetFolder.makeFolder(
                     context = context,
-                    targetFolder = targetFolder,
-                    fileDescription = fileDescription,
-                    updateInterval = updateInterval,
-                    checkIfEnoughSpaceOnTarget = false,
-                    onConflict = onConflict
+                    name = fileDescription?.subFolder.orEmpty(),
+                    mode = CreateMode.REUSE
                 )
-            )
-            close()
-            return@channelFlow
-        }
-
-        val targetDirectory = if (fileDescription?.subFolder.isNullOrEmpty()) {
-            targetFolder
-        } else {
-            targetFolder.makeFolder(
-                context = context,
-                name = fileDescription?.subFolder.orEmpty(),
-                mode = CreateMode.REUSE
-            )
-                .also {
-                    if (it == null) {
-                        sendAndClose(SingleFileResult.Error(SingleFileError.TargetNotWritable))
-                        return@channelFlow
-                    }
-                }!!
-        }
-
-        val cleanFileName = MimeType.getFullFileName(
-            fileDescription?.name ?: name.orEmpty(),
-            fileDescription?.mimeType ?: type
-        )
-            .removeForbiddenCharsFromFilename().trimFileSeparator()
-        val conflictResolution =
-            handleFileConflict(targetDirectory, cleanFileName, this, onConflict)
-        if (conflictResolution == SingleFileConflictCallback.ConflictResolution.SKIP) {
-            close()
-            return@channelFlow
-        }
-
-        try {
-            val targetFile = createTargetFile(
-                targetDirectory, cleanFileName, fileDescription?.mimeType ?: type,
-                conflictResolution.toCreateMode(), this
-            )
-                .also {
-                    if (it == null) {
-                        close()
-                        return@channelFlow
-                    }
-                }!!
-            createFileStreams(targetFile, this) { inputStream, outputStream ->
-                copyFileStream(inputStream, outputStream, targetFile, updateInterval, false, this)
+                    .also {
+                        if (it == null) {
+                            sendAndClose(SingleFileResult.Error(SingleFileError.TargetNotWritable))
+                            return@channelFlow
+                        }
+                    }!!
             }
-        } catch (e: SecurityException) {
-            handleSecurityException(e, this)
-        } catch (e: Exception) {
-            trySend(e.toSingleFileError())
+
+            val cleanFileName = MimeType.getFullFileName(
+                fileDescription?.name ?: name.orEmpty(),
+                fileDescription?.mimeType ?: type
+            )
+                .removeForbiddenCharsFromFilename().trimFileSeparator()
+            val conflictResolution =
+                handleFileConflict(targetDirectory, cleanFileName, this, onConflict)
+            if (conflictResolution == SingleFileConflictCallback.ConflictResolution.SKIP) {
+                close()
+                return@channelFlow
+            }
+
+            try {
+                val targetFile = createTargetFile(
+                    targetDirectory,
+                    cleanFileName,
+                    fileDescription?.mimeType ?: type,
+                    conflictResolution.toCreateMode(),
+                    this
+                )
+                    .also {
+                        if (it == null) {
+                            close()
+                            return@channelFlow
+                        }
+                    }!!
+                createFileStreams(targetFile, this) { inputStream, outputStream ->
+                    copyFileStream(inputStream, outputStream, targetFile, updateInterval, false, this)
+                }
+            } catch (e: SecurityException) {
+                handleSecurityException(e, this)
+            } catch (e: Exception) {
+                trySend(e.toSingleFileError())
+            }
+            close()
         }
-        close()
-    }
 
     @WorkerThread
     fun copyToFile(
@@ -603,40 +630,40 @@ class MediaFile @JvmOverloads constructor(
         checkIfEnoughSpaceOnTarget: Boolean = true,
         checkIfTargetWritable: Boolean = true,
         deleteOnSuccess: Boolean
-    ): Flow<SingleFileResult> = channelFlow {
+    ): Flow<SingleFileResult> =
+        channelFlow {
+            if (checkIfEnoughSpaceOnTarget) {
+                enoughSpaceOnTarget(targetFile)?.let {
+                    sendAndClose(SingleFileResult.Error(it))
+                    return@channelFlow
+                }
+            }
 
-        if (checkIfEnoughSpaceOnTarget) {
-            enoughSpaceOnTarget(targetFile)?.let {
-                sendAndClose(SingleFileResult.Error(it))
+            toDocumentFile()?.let { documentFile ->
+                documentFile.copyToFile(
+                    context = context,
+                    targetFile = targetFile,
+                    updateInterval = updateInterval,
+                    scope = this,
+                    deleteSourceFileOnSuccess = deleteOnSuccess,
+                    checkIfTargetWritable = checkIfTargetWritable
+                )
+                close()
                 return@channelFlow
             }
-        }
 
-        toDocumentFile()?.let { documentFile ->
-            documentFile.copyToFile(
-                context = context,
-                targetFile = targetFile,
-                updateInterval = updateInterval,
-                scope = this,
-                deleteSourceFileOnSuccess = deleteOnSuccess,
-                checkIfTargetWritable = checkIfTargetWritable
-            )
-            close()
-            return@channelFlow
-        }
-
-        try {
-            createFileStreams(targetFile, this) { inputStream, outputStream ->
-                copyFileStream(inputStream, outputStream, targetFile, updateInterval, false, this)
+            try {
+                createFileStreams(targetFile, this) { inputStream, outputStream ->
+                    copyFileStream(inputStream, outputStream, targetFile, updateInterval, false, this)
+                }
+            } catch (e: SecurityException) {
+                handleSecurityException(e, this)
+            } catch (e: Exception) {
+                send(e.toSingleFileError())
+            } finally {
+                close()
             }
-        } catch (e: SecurityException) {
-            handleSecurityException(e, this)
-        } catch (e: Exception) {
-            send(e.toSingleFileError())
-        } finally {
-            close()
         }
-    }
 
     private fun enoughSpaceOnTarget(target: DocumentFile): SingleFileError.NotEnoughSpaceOnTarget? =
         target.hasEnoughSpace(context, length)
@@ -646,7 +673,7 @@ class MediaFile @JvmOverloads constructor(
         fileName: String,
         mimeType: String?,
         mode: CreateMode,
-        scope: ProducerScope<SingleFileResult>,
+        scope: ProducerScope<SingleFileResult>
     ): DocumentFile? {
         try {
             val absolutePath = DocumentFileCompat.buildAbsolutePath(
@@ -701,7 +728,7 @@ class MediaFile @JvmOverloads constructor(
         targetFile: DocumentFile,
         updateInterval: Long,
         deleteSourceFileWhenComplete: Boolean,
-        scope: ProducerScope<SingleFileResult>,
+        scope: ProducerScope<SingleFileResult>
     ) {
         var timer: Job? = null
         try {
@@ -802,9 +829,12 @@ class MediaFile @JvmOverloads constructor(
         return 0
     }
 
-    override fun equals(other: Any?) = other === this || other is MediaFile && other.uri == uri
+    override fun equals(other: Any?) =
+        other === this || other is MediaFile && other.uri == uri
 
-    override fun hashCode() = uri.hashCode()
+    override fun hashCode() =
+        uri.hashCode()
 
-    override fun toString() = uri.toString()
+    override fun toString() =
+        uri.toString()
 }

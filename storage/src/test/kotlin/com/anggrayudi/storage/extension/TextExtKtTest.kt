@@ -3,12 +3,12 @@ package com.anggrayudi.storage.extension
 import android.os.Environment
 import io.mockk.every
 import io.mockk.mockkStatic
+import java.io.File
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
-import java.io.File
 
 /**
  * Created on 20/08/20

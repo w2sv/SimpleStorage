@@ -18,11 +18,15 @@ class ActivityPermissionRequest private constructor(
     private val callback: PermissionCallback
 ) : PermissionRequest {
 
-    private val launcher = if (activity is ComponentActivity) activity.registerForActivityResult(
-        ActivityResultContracts.RequestMultiplePermissions()
-    ) {
-        onRequestPermissionsResult(it)
-    } else null
+    private val launcher = if (activity is ComponentActivity) {
+        activity.registerForActivityResult(
+            ActivityResultContracts.RequestMultiplePermissions()
+        ) {
+            onRequestPermissionsResult(it)
+        }
+    } else {
+        null
+    }
 
     override fun check() {
         if (permissions.all {
@@ -30,11 +34,15 @@ class ActivityPermissionRequest private constructor(
                     activity,
                     it
                 ) == PackageManager.PERMISSION_GRANTED
-            }) {
+            }
+        ) {
             callback.onPermissionsChecked(
-                PermissionResult(permissions.map {
-                    PermissionReport(it, isGranted = true, deniedPermanently = false)
-                }), false
+                PermissionResult(
+                    permissions.map {
+                        PermissionReport(it, isGranted = true, deniedPermanently = false)
+                    }
+                ),
+                false
             )
         } else {
             callback.onDisplayConsentDialog(this)
@@ -117,9 +125,12 @@ class ActivityPermissionRequest private constructor(
             }
         }
         callback.onPermissionsChecked(
-            PermissionResult(permissions.map {
-                PermissionReport(it, isGranted = true, deniedPermanently = false)
-            }), false
+            PermissionResult(
+                permissions.map {
+                    PermissionReport(it, isGranted = true, deniedPermanently = false)
+                }
+            ),
+            false
         )
     }
 
@@ -142,17 +153,20 @@ class ActivityPermissionRequest private constructor(
 
         private var callback: PermissionCallback? = null
 
-        fun withPermissions(vararg permissions: String) = apply {
-            this.permissions = permissions.toSet()
-        }
+        fun withPermissions(vararg permissions: String) =
+            apply {
+                this.permissions = permissions.toSet()
+            }
 
-        fun withCallback(callback: PermissionCallback) = apply {
-            this.callback = callback
-        }
+        fun withCallback(callback: PermissionCallback) =
+            apply {
+                this.callback = callback
+            }
 
         fun build() =
             ActivityPermissionRequest(activity, permissions.toTypedArray(), requestCode, callback!!)
 
-        fun check() = build().check()
+        fun check() =
+            build().check()
     }
 }

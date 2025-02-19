@@ -30,11 +30,15 @@ class FragmentPermissionRequest private constructor(
                     context,
                     it
                 ) == PackageManager.PERMISSION_GRANTED
-            }) {
+            }
+        ) {
             callback.onPermissionsChecked(
-                PermissionResult(permissions.map {
-                    PermissionReport(it, isGranted = true, deniedPermanently = false)
-                }), false
+                PermissionResult(
+                    permissions.map {
+                        PermissionReport(it, isGranted = true, deniedPermanently = false)
+                    }
+                ),
+                false
             )
         } else {
             callback.onDisplayConsentDialog(this)
@@ -79,9 +83,12 @@ class FragmentPermissionRequest private constructor(
             }
         }
         callback.onPermissionsChecked(
-            PermissionResult(permissions.map {
-                PermissionReport(it, isGranted = true, deniedPermanently = false)
-            }), false
+            PermissionResult(
+                permissions.map {
+                    PermissionReport(it, isGranted = true, deniedPermanently = false)
+                }
+            ),
+            false
         )
     }
 
@@ -93,21 +100,25 @@ class FragmentPermissionRequest private constructor(
 
         private var options: ActivityOptionsCompat? = null
 
-        fun withPermissions(vararg permissions: String) = apply {
-            this.permissions = permissions.toSet()
-        }
+        fun withPermissions(vararg permissions: String) =
+            apply {
+                this.permissions = permissions.toSet()
+            }
 
-        fun withCallback(callback: PermissionCallback) = apply {
-            this.callback = callback
-        }
+        fun withCallback(callback: PermissionCallback) =
+            apply {
+                this.callback = callback
+            }
 
-        fun withActivityOptions(options: ActivityOptionsCompat?) = apply {
-            this.options = options
-        }
+        fun withActivityOptions(options: ActivityOptionsCompat?) =
+            apply {
+                this.options = options
+            }
 
         fun build() =
             FragmentPermissionRequest(fragment, permissions.toTypedArray(), options, callback!!)
 
-        fun check() = build().check()
+        fun check() =
+            build().check()
     }
 }

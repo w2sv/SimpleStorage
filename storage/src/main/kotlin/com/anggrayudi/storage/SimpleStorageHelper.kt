@@ -131,15 +131,12 @@ class SimpleStorageHelper {
             }
         }
 
-    var onFileSelected: ((requestCode: Int, /* non-empty list */ files: List<DocumentFile>) -> Unit)? =
+    var onFileSelected: ((requestCode: Int, files: List<DocumentFile>) -> Unit)? =
         null
         set(callback) {
             field = callback
             storage.filePickerCallback = object : FilePickerCallback {
-                override fun onStoragePermissionDenied(
-                    requestCode: Int,
-                    files: List<DocumentFile>?
-                ) {
+                override fun onStoragePermissionDenied(requestCode: Int, files: List<DocumentFile>?) {
                     requestStoragePermission { if (it) storage.openFilePicker() else reset() }
                 }
 
@@ -205,10 +202,20 @@ class SimpleStorageHelper {
                 val storageType =
                     if (expectedStorageType.isExpected(selectedStorageType)) selectedStorageType else expectedStorageType
                 val messageRes = if (rootPath.isEmpty()) {
-                    storage.context.getString(if (storageType == StorageType.SD_CARD) R.string.ss_please_select_root_storage_sdcard else R.string.ss_please_select_root_storage_primary)
+                    storage.context.getString(
+                        if (storageType == StorageType.SD_CARD) {
+                            R.string.ss_please_select_root_storage_sdcard
+                        } else {
+                            R.string.ss_please_select_root_storage_primary
+                        }
+                    )
                 } else {
                     val resId =
-                        if (storageType == StorageType.SD_CARD) R.string.ss_please_select_root_storage_sdcard_with_location else R.string.ss_please_select_root_storage_primary_with_location
+                        if (storageType == StorageType.SD_CARD) {
+                            R.string.ss_please_select_root_storage_sdcard_with_location
+                        } else {
+                            R.string.ss_please_select_root_storage_primary_with_location
+                        }
                     storage.context.getString(resId, rootPath)
                 }
                 AlertDialog.Builder(storage.context)
@@ -286,7 +293,8 @@ class SimpleStorageHelper {
                         StorageType.EXTERNAL -> R.string.ss_please_select_base_path_with_storage_type_primary
                         StorageType.SD_CARD -> R.string.ss_please_select_base_path_with_storage_type_sd_card
                         else -> R.string.ss_please_select_base_path
-                    }, expectedBasePath
+                    },
+                    expectedBasePath
                 )
                 AlertDialog.Builder(storage.context)
                     .setCancelable(false)
@@ -381,10 +389,7 @@ class SimpleStorageHelper {
     }
 
     @JvmOverloads
-    fun openFolderPicker(
-        requestCode: Int = storage.requestCodeFolderPicker,
-        initialPath: FileFullPath? = null
-    ) {
+    fun openFolderPicker(requestCode: Int = storage.requestCodeFolderPicker, initialPath: FileFullPath? = null) {
         pickerToOpenOnceGranted = TYPE_FOLDER_PICKER
         originalRequestCode = requestCode
         storage.openFolderPicker(requestCode, initialPath)

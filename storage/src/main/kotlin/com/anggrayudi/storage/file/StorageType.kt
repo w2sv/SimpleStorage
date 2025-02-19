@@ -18,7 +18,8 @@ enum class StorageType {
     SD_CARD,
     UNKNOWN;
 
-    fun isExpected(actualStorageType: StorageType) = this == UNKNOWN || this == actualStorageType
+    fun isExpected(actualStorageType: StorageType) =
+        this == UNKNOWN || this == actualStorageType
 
     companion object {
 
@@ -26,11 +27,12 @@ enum class StorageType {
          * @param storageId get it from [Uri.getStorageId]
          */
         @JvmStatic
-        fun fromStorageId(storageId: String) = when {
-            storageId == StorageId.PRIMARY -> EXTERNAL
-            storageId == StorageId.DATA -> DATA
-            storageId.matches(DocumentFileCompat.SD_CARD_STORAGE_ID_REGEX) -> SD_CARD
-            else -> UNKNOWN
-        }
+        fun fromStorageId(storageId: String) =
+            when {
+                storageId == StorageId.PRIMARY -> EXTERNAL
+                storageId == StorageId.DATA -> DATA
+                storageId.matches(DocumentFileCompat.SD_CARD_STORAGE_ID_REGEX) -> SD_CARD
+                else -> UNKNOWN
+            }
     }
 }

@@ -27,21 +27,26 @@ fun String.count(text: String): Int {
     return count
 }
 
-fun String.trimFileName() = trim { it <= ' ' || it == '/' }.trimEnd('.')
+fun String.trimFileName() =
+    trim { it <= ' ' || it == '/' }.trimEnd('.')
 
-fun String.normalizeFileName() = removeForbiddenCharsFromFilename().trimFileName()
+fun String.normalizeFileName() =
+    removeForbiddenCharsFromFilename().trimFileName()
 
-fun String.trimFileSeparator() = trim('/')
+fun String.trimFileSeparator() =
+    trim('/')
 
-fun String.trimWhiteSpace() = trim { it <= ' ' }
+fun String.trimWhiteSpace() =
+    trim { it <= ' ' }
 
-fun String.replaceCompletely(match: String, replaceWith: String) = let {
-    var path = it
-    do {
-        path = path.replace(match, replaceWith)
-    } while (path.isNotEmpty() && path.contains(match))
-    path
-}
+fun String.replaceCompletely(match: String, replaceWith: String) =
+    let {
+        var path = it
+        do {
+            path = path.replace(match, replaceWith)
+        } while (path.isNotEmpty() && path.contains(match))
+        path
+    }
 
 @RestrictTo(RestrictTo.Scope.LIBRARY)
 fun String.hasParent(parentPath: String): Boolean {
@@ -64,8 +69,8 @@ fun String.parent(): String {
         return ""
     }
     val parentPath = folderTree.take(folderTree.size - 1).joinToString("/", "/")
-    return if (parentPath.startsWith(SimpleStorage.externalStoragePath)
-        || parentPath.matches(Regex("/storage/[A-Z0-9]{4}-[A-Z0-9]{4}(.*?)"))
+    return if (parentPath.startsWith(SimpleStorage.externalStoragePath) ||
+        parentPath.matches(Regex("/storage/[A-Z0-9]{4}-[A-Z0-9]{4}(.*?)"))
     ) {
         parentPath
     } else {
@@ -73,6 +78,7 @@ fun String.parent(): String {
     }
 }
 
-private fun String.getFolderTree() = split('/')
-    .map { it.trimFileSeparator() }
-    .filter { it.isNotEmpty() }
+private fun String.getFolderTree() =
+    split('/')
+        .map { it.trimFileSeparator() }
+        .filter { it.isNotEmpty() }

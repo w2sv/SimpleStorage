@@ -30,9 +30,13 @@ enum class MediaType(val readUri: Uri?, val writeUri: Uri?, val mimeType: String
     ),
     DOWNLOADS(
         if (Build.VERSION.SDK_INT < Build.VERSION_CODES.Q) null else MediaStore.Downloads.EXTERNAL_CONTENT_URI,
-        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.Q) null else MediaStore.Downloads.getContentUri(
-            MediaStoreCompat.volumeName
-        ),
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.Q) {
+            null
+        } else {
+            MediaStore.Downloads.getContentUri(
+                MediaStoreCompat.volumeName
+            )
+        },
         MimeType.UNKNOWN
     );
 

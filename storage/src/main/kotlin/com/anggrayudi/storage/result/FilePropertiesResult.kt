@@ -20,7 +20,8 @@ data class FileProperties(
     var isVirtual: Boolean = false,
     var lastModified: Date? = null
 ) {
-    fun formattedSize(context: Context): String = Formatter.formatFileSize(context, size)
+    fun formattedSize(context: Context): String =
+        Formatter.formatFileSize(context, size)
 }
 
 sealed interface FilePropertiesResult {

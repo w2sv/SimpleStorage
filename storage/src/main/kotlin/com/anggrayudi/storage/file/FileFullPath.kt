@@ -104,12 +104,19 @@ class FileFullPath {
 
     constructor(context: Context, file: File) : this(context, file.path.orEmpty())
 
-    private fun buildAbsolutePath(context: Context, storageId: String, basePath: String) =
-        if (storageId.isEmpty()) "" else when (storageId) {
+    private fun buildAbsolutePath(
+        context: Context,
+        storageId: String,
+        basePath: String
+    ) = if (storageId.isEmpty()) {
+        ""
+    } else {
+        when (storageId) {
             StorageId.PRIMARY -> "${SimpleStorage.externalStoragePath}/$basePath".trimEnd('/')
             StorageId.DATA -> "${context.dataDirectory.path}/$basePath".trimEnd('/')
             else -> "/storage/$storageId/$basePath".trimEnd('/')
         }
+    }
 
     private fun buildBaseAndAbsolutePaths(context: Context) {
         absolutePath = buildAbsolutePath(context, storageId, basePath)
@@ -117,10 +124,14 @@ class FileFullPath {
     }
 
     val uri: Uri?
-        get() = if (storageId.isEmpty()) null else DocumentFileCompat.createDocumentUri(
-            storageId,
-            basePath
-        )
+        get() = if (storageId.isEmpty()) {
+            null
+        } else {
+            DocumentFileCompat.createDocumentUri(
+                storageId,
+                basePath
+            )
+        }
 
     fun toDocumentUri(context: Context): Uri? {
         return context.fromTreeUri(uri ?: return null)?.uri
@@ -135,7 +146,9 @@ class FileFullPath {
             throw IllegalArgumentException("Empty storage ID")
         }
         if (storageId == StorageId.DATA) {
-            throw IllegalArgumentException("Cannot use StorageType.DATA because it is never available in Storage Access Framework's folder selector.")
+            throw IllegalArgumentException(
+                "Cannot use StorageType.DATA because it is never available in Storage Access Framework's folder selector."
+            )
         }
     }
 }

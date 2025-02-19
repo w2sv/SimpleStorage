@@ -32,7 +32,7 @@ internal class ComponentActivityWrapper(private val _activity: ComponentActivity
             activityResultLauncher.launch(intent)
             this.requestCode = requestCode
             true
-        } catch (e: ActivityNotFoundException) {
+        } catch (_: ActivityNotFoundException) {
             false
         }
     }

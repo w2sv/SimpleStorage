@@ -64,8 +64,9 @@ fun ZipOutputStream?.closeEntryQuietly() {
     }
 }
 
-fun Cursor.getString(column: String) = try {
-    getString(getColumnIndexOrThrow(column))
-} catch (e: Exception) {
-    null
-}
+fun Cursor.getString(column: String) =
+    try {
+        getString(getColumnIndexOrThrow(column))
+    } catch (e: Exception) {
+        null
+    }

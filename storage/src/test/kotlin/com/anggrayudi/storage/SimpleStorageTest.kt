@@ -10,13 +10,13 @@ import io.mockk.every
 import io.mockk.mockk
 import io.mockk.mockkStatic
 import io.mockk.verify
+import java.io.File
+import kotlin.concurrent.thread
 import org.junit.Assert.assertEquals
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
 import org.robolectric.annotation.Config
-import java.io.File
-import kotlin.concurrent.thread
 
 /**
  * Created on 26/09/20
@@ -47,7 +47,7 @@ class SimpleStorageTest {
             "content://com.android.externalstorage.documents/tree/primary%3A a/b/d/g",
             "content://com.android.externalstorage.documents/tree/primary%3A x/a",
             "content://com.android.externalstorage.documents/tree/primary%3A y",
-            "content://com.android.externalstorage.documents/tree/primary%3A a/b",
+            "content://com.android.externalstorage.documents/tree/primary%3A a/b"
         ).map { Uri.parse(it) }
 
         val persistedUriPermissions = persistedUris.map {
@@ -68,7 +68,7 @@ class SimpleStorageTest {
             "content://com.android.externalstorage.documents/tree/primary%3A y/x",
             "content://com.android.externalstorage.documents/tree/primary%3A a/b/z",
             "content://com.android.externalstorage.documents/tree/primary%3A a/b/d",
-            "content://com.android.externalstorage.documents/tree/primary%3A a/b/d/g",
+            "content://com.android.externalstorage.documents/tree/primary%3A a/b/d/g"
         ).map { Uri.parse(it) }
 
         mockkStatic("kotlin.concurrent.ThreadsKt")

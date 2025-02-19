@@ -52,5 +52,5 @@ enum class CreateMode {
     /**
      * If the file already exists, then return null.
      */
-    SKIP_IF_EXISTS;
+    SKIP_IF_EXISTS
 }

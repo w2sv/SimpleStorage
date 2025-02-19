@@ -30,10 +30,12 @@ fun Uri.getStorageId(context: Context): String {
     val path = path.orEmpty()
     return if (isRawFile) {
         File(path).getStorageId(context)
-    } else when {
-        isDownloadsDocument || isDocumentsDocument -> PRIMARY
-        isExternalStorageDocument -> path.substringBefore(':', "").substringAfterLast('/')
-        else -> ""
+    } else {
+        when {
+            isDownloadsDocument || isDocumentsDocument -> PRIMARY
+            isExternalStorageDocument -> path.substringBefore(':', "").substringAfterLast('/')
+            else -> ""
+        }
     }
 }
 
@@ -61,9 +63,11 @@ val Uri.isRawFile: Boolean
 val Uri.isMediaFile: Boolean
     get() = authority == MediaStore.AUTHORITY
 
-fun Uri.toMediaFile(context: Context) = if (isMediaFile) MediaFile(context, this) else null
+fun Uri.toMediaFile(context: Context) =
+    if (isMediaFile) MediaFile(context, this) else null
 
-fun Uri.toDocumentFile(context: Context) = DocumentFileCompat.fromUri(context, this)
+fun Uri.toDocumentFile(context: Context) =
+    DocumentFileCompat.fromUri(context, this)
 
 @JvmOverloads
 @WorkerThread

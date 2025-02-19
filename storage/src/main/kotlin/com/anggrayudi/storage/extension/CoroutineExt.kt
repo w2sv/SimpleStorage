@@ -48,10 +48,7 @@ fun startCoroutineTimer(
 fun launchOnUiThread(action: suspend CoroutineScope.() -> Unit) =
     GlobalScope.launch(Dispatchers.Main, block = action)
 
-inline fun <R> awaitUiResultWithPending(
-    uiScope: CoroutineScope,
-    crossinline action: (CancellableContinuation<R>) -> Unit
-): R {
+inline fun <R> awaitUiResultWithPending(uiScope: CoroutineScope, crossinline action: (CancellableContinuation<R>) -> Unit): R {
     return runBlocking {
         suspendCancellableCoroutine {
             uiScope.launch(Dispatchers.Main) { action(it) }

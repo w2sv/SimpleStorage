@@ -39,9 +39,13 @@ object MimeType {
             }
         }
         return getExtensionFromMimeType(mimeType).let {
-            if (it.isEmpty() || cleanName.endsWith(".$it")) cleanName else "$cleanName.$it".trimEnd(
-                '.'
-            )
+            if (it.isEmpty() || cleanName.endsWith(".$it")) {
+                cleanName
+            } else {
+                "$cleanName.$it".trimEnd(
+                    '.'
+                )
+            }
         }
     }
 
@@ -53,15 +57,23 @@ object MimeType {
     @JvmStatic
     fun getExtensionFromMimeType(mimeType: String?): String {
         return mimeType?.let {
-            if (it == BINARY_FILE) "bin" else MimeTypeMap.getSingleton()
-                .getExtensionFromMimeType(it)
+            if (it == BINARY_FILE) {
+                "bin"
+            } else {
+                MimeTypeMap.getSingleton()
+                    .getExtensionFromMimeType(it)
+            }
         }.orEmpty()
     }
 
     @JvmStatic
     fun getBaseFileName(filename: String?): String {
-        return if (hasExtension(filename)) filename.orEmpty()
-            .substringBeforeLast('.') else filename.orEmpty()
+        return if (hasExtension(filename)) {
+            filename.orEmpty()
+                .substringBeforeLast('.')
+        } else {
+            filename.orEmpty()
+        }
     }
 
     @JvmStatic
@@ -75,16 +87,21 @@ object MimeType {
      * * `abc.あん`
      */
     @JvmStatic
-    fun hasExtension(filename: String?) = filename?.matches(Regex("(.*?)\\.[a-zA-Z0-9]+")) == true
+    fun hasExtension(filename: String?) =
+        filename?.matches(Regex("(.*?)\\.[a-zA-Z0-9]+")) == true
 
     /**
      * @see getExtensionFromMimeType
      */
     @JvmStatic
     fun getExtensionFromMimeTypeOrFileName(mimeType: String?, filename: String): String {
-        return if (mimeType == null || mimeType == UNKNOWN) getExtensionFromFileName(filename) else getExtensionFromMimeType(
-            mimeType
-        )
+        return if (mimeType == null || mimeType == UNKNOWN) {
+            getExtensionFromFileName(filename)
+        } else {
+            getExtensionFromMimeType(
+                mimeType
+            )
+        }
     }
 
     /**
@@ -96,8 +113,12 @@ object MimeType {
                 "bin",
                 ignoreCase = true
             )
-        ) BINARY_FILE else MimeTypeMap.getSingleton().getMimeTypeFromExtension(fileExtension)
-            ?: UNKNOWN
+        ) {
+            BINARY_FILE
+        } else {
+            MimeTypeMap.getSingleton().getMimeTypeFromExtension(fileExtension)
+                ?: UNKNOWN
+        }
     }
 
     @JvmStatic

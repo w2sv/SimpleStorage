@@ -2,6 +2,7 @@ package com.anggrayudi.storage.file
 
 import com.nhaarman.mockitokotlin2.mock
 import com.nhaarman.mockitokotlin2.whenever
+import java.io.File
 import org.junit.Assert.assertEquals
 import org.junit.Ignore
 import org.junit.Test
@@ -9,7 +10,6 @@ import org.junit.runner.RunWith
 import org.powermock.api.mockito.PowerMockito.whenNew
 import org.powermock.core.classloader.annotations.PrepareForTest
 import org.powermock.modules.junit4.PowerMockRunner
-import java.io.File
 
 /**
  * Created on 12/16/20
@@ -92,12 +92,14 @@ class FileExtKtTest {
             val ext = MimeType.getExtensionFromFileName(filename)
             val prefix = "$baseName ("
             var lastFileCount = list().orEmpty().filter {
-                it.startsWith(prefix) && (DocumentFileCompat.FILE_NAME_DUPLICATION_REGEX_WITH_EXTENSION.matches(
-                    it
-                )
-                        || DocumentFileCompat.FILE_NAME_DUPLICATION_REGEX_WITHOUT_EXTENSION.matches(
-                    it
-                ))
+                it.startsWith(prefix) && (
+                    DocumentFileCompat.FILE_NAME_DUPLICATION_REGEX_WITH_EXTENSION.matches(
+                        it
+                    ) ||
+                        DocumentFileCompat.FILE_NAME_DUPLICATION_REGEX_WITHOUT_EXTENSION.matches(
+                            it
+                        )
+                    )
             }.maxOfOrNull {
                 it.substringAfterLast('(', "")
                     .substringBefore(')', "")

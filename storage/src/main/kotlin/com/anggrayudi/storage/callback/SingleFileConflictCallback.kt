@@ -13,7 +13,10 @@ import kotlinx.coroutines.GlobalScope
  * Created on 17/08/20
  * @author Anggrayudi H
  */
-abstract class SingleFileConflictCallback<T> @OptIn(DelicateCoroutinesApi::class) @JvmOverloads constructor(
+abstract class SingleFileConflictCallback<T>
+@OptIn(DelicateCoroutinesApi::class)
+@JvmOverloads
+constructor(
     var uiScope: CoroutineScope = GlobalScope
 ) {
 
@@ -56,10 +59,11 @@ abstract class SingleFileConflictCallback<T> @OptIn(DelicateCoroutinesApi::class
         SKIP;
 
         @RestrictTo(RestrictTo.Scope.LIBRARY)
-        fun toCreateMode(allowReuseFile: Boolean = false) = when (this) {
-            REPLACE -> CreateMode.REPLACE
-            CREATE_NEW -> CreateMode.CREATE_NEW
-            SKIP -> if (allowReuseFile) CreateMode.REUSE else CreateMode.CREATE_NEW
-        }
+        fun toCreateMode(allowReuseFile: Boolean = false) =
+            when (this) {
+                REPLACE -> CreateMode.REPLACE
+                CREATE_NEW -> CreateMode.CREATE_NEW
+                SKIP -> if (allowReuseFile) CreateMode.REUSE else CreateMode.CREATE_NEW
+            }
     }
 }

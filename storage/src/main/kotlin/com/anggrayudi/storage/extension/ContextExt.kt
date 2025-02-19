@@ -14,7 +14,8 @@ import androidx.documentfile.provider.DocumentFile
  * Created on 17/08/20
  * @author Anggrayudi H
  */
-fun Context.getAppDirectory(type: String? = null) = "${getExternalFilesDir(type)}"
+fun Context.getAppDirectory(type: String? = null) =
+    "${getExternalFilesDir(type)}"
 
 fun Context.startActivitySafely(intent: Intent) {
     try {
@@ -40,14 +41,16 @@ fun Context.unregisterReceiverSafely(receiver: BroadcastReceiver?) {
     }
 }
 
-fun Context.fromTreeUri(fileUri: Uri) = try {
-    DocumentFile.fromTreeUri(this, fileUri)
-} catch (e: Exception) {
-    null
-}
+fun Context.fromTreeUri(fileUri: Uri) =
+    try {
+        DocumentFile.fromTreeUri(this, fileUri)
+    } catch (e: Exception) {
+        null
+    }
 
-fun Context.fromSingleUri(fileUri: Uri) = try {
-    DocumentFile.fromSingleUri(this, fileUri)
-} catch (e: Exception) {
-    null
-}
+fun Context.fromSingleUri(fileUri: Uri) =
+    try {
+        DocumentFile.fromSingleUri(this, fileUri)
+    } catch (e: Exception) {
+        null
+    }

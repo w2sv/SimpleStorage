@@ -7,10 +7,10 @@ import com.anggrayudi.storage.file.StorageId.PRIMARY
 import io.mockk.every
 import io.mockk.mockk
 import io.mockk.mockkStatic
+import java.io.File
 import org.junit.Assert.assertEquals
 import org.junit.Before
 import org.junit.Test
-import java.io.File
 
 /**
  * Created on 12/1/20
@@ -71,7 +71,7 @@ class DocumentFileCompatTest {
             "/folder/subFolder/b",
             "/folder/subFolder/b/d",
             "primary:Alarm/Morning",
-            "primary:Alarm",
+            "primary:Alarm"
         )
 
         val expected = listOf(
@@ -81,7 +81,7 @@ class DocumentFileCompatTest {
             "/storage/emulated/0/Music",
             "/storage/emulated/0/Music Indo",
             "/folder/subFolder/b",
-            "/storage/emulated/0/Alarm",
+            "/storage/emulated/0/Alarm"
         )
 
         val results = DocumentFileCompat.findUniqueParents(context, folderPaths)
@@ -101,7 +101,7 @@ class DocumentFileCompatTest {
             "/tree/primary/b",
             "/tree/primary/b/d",
             "primary:Alarm/Morning",
-            "primary:Alarm",
+            "primary:Alarm"
         )
 
         val expected = listOf(
@@ -111,7 +111,7 @@ class DocumentFileCompatTest {
             "/storage/emulated/0/Music",
             "/tree/primary/b/c",
             "/tree/primary/b/d",
-            "/storage/emulated/0/Alarm/Morning",
+            "/storage/emulated/0/Alarm/Morning"
         )
 
         val results = DocumentFileCompat.findUniqueDeepestSubFolders(context, folderPaths)
