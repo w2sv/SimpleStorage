@@ -62,15 +62,15 @@ publishing {
 }
 
 dependencies {
-    api(libs.documentfile)
-    implementation(libs.appcompat)
-    implementation(libs.activity)
+    api(libs.androidx.documentfile)
+    implementation(libs.androidx.appcompat)
+    implementation(libs.androidx.activity)
     implementation(libs.androidx.core.ktx)
-    implementation(libs.fragment)
-    implementation(libs.coroutines.android)
-    implementation(libs.lifecycle.viewmodel.ktx)
+    implementation(libs.androidx.fragment)
+    implementation(libs.kotlinx.coroutines.android)
+    implementation(libs.androidx.lifecycle.viewmodel.ktx)
 
-    testImplementation(libs.junit)
+    testImplementation(libs.junit.jupiter.engine)
     testImplementation(libs.mockk)
     testImplementation(libs.robolectric)
 
