@@ -13,10 +13,8 @@ import kotlinx.coroutines.GlobalScope
  * Created on 17/08/20
  * @author Anggrayudi H
  */
-abstract class SingleFileConflictCallback<T>
 @OptIn(DelicateCoroutinesApi::class)
-@JvmOverloads
-constructor(
+abstract class SingleFileConflictCallback<T> @JvmOverloads constructor(
     var uiScope: CoroutineScope = GlobalScope
 ) {
 

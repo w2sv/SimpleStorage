@@ -438,10 +438,12 @@ class SimpleStorage private constructor(private val wrapper: ComponentWrapper) {
             folderPickerCallback?.onStorageAccessDenied(requestCode, folder, storageType, storageId)
             return
         }
-        if (uri.toString()
-                .let { it == DocumentFileCompat.DOWNLOADS_TREE_URI || it == DocumentFileCompat.DOCUMENTS_TREE_URI } ||
+        if (uri.toString().let { it == DocumentFileCompat.DOWNLOADS_TREE_URI || it == DocumentFileCompat.DOCUMENTS_TREE_URI } ||
             DocumentFileCompat.isRootUri(uri) &&
-            (Build.VERSION.SDK_INT < Build.VERSION_CODES.N && storageType == StorageType.SD_CARD || Build.VERSION.SDK_INT == Build.VERSION_CODES.Q) &&
+            (
+                Build.VERSION.SDK_INT < Build.VERSION_CODES.N && storageType == StorageType.SD_CARD ||
+                    Build.VERSION.SDK_INT == Build.VERSION_CODES.Q
+                ) &&
             !DocumentFileCompat.isStorageUriPermissionGranted(context, storageId)
         ) {
             saveUriPermission(uri)
