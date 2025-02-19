@@ -1,6 +1,5 @@
 package com.anggrayudi.storage.file
 
-import android.Manifest
 import android.content.ContentResolver
 import android.content.Context
 import android.net.Uri
@@ -1055,7 +1054,7 @@ object DocumentFileCompat {
                     stats.f_blocks * stats.f_frsize
                 } ?: 0
             }
-        } catch (e: Throwable) {
+        } catch (_: Throwable) {
             0
         }
     }
