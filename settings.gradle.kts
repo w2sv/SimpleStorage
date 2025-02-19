@@ -16,5 +16,3 @@ dependencyResolutionManagement {
 }
 
 include(":storage")
-//include(':sample')
-//rootProject.name = "SimpleStorage"

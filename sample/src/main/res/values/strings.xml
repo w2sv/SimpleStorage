@@ -1,4 +1,0 @@
-<resources>
-    <string name="app_name" translatable="false">Simple Storage</string>
-    <string name="copying_file">Copying file: %1$s%</string>
-</resources>
