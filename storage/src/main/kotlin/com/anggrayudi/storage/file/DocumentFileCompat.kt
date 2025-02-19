@@ -927,12 +927,12 @@ object DocumentFileCompat {
                 // Find granted file tree.
                 // For example, /storage/emulated/0/Music may not granted, but /storage/emulated/0/Music/Pop is granted by user.
                 while (directorySequence.isNotEmpty()) {
-                    parentTree.add(directorySequence.removeFirst())
+                    parentTree.add(directorySequence.removeFirstCompat())
                     val folderTree = parentTree.joinToString(separator = "/")
                     try {
                         grantedFile = context.fromTreeUri(createDocumentUri(storageId, folderTree))
                         if (grantedFile?.canRead() == true) break
-                    } catch (e: SecurityException) {
+                    } catch (_: SecurityException) {
                         // ignore
                     }
                 }
@@ -944,10 +944,12 @@ object DocumentFileCompat {
                 }
             }
         return file?.takeIf {
-            it.canRead() && (
-                documentType == DocumentFileType.ANY ||
-                    documentType == DocumentFileType.FILE && it.isFile || documentType == DocumentFileType.FOLDER && it.isDirectory
-                )
+            it.canRead() &&
+                (
+                    documentType == DocumentFileType.ANY ||
+                        documentType == DocumentFileType.FILE && it.isFile ||
+                        documentType == DocumentFileType.FOLDER && it.isDirectory
+                    )
         }
     }
 
@@ -1121,3 +1123,6 @@ object DocumentFileCompat {
         }
     }
 }
+
+private fun <T> MutableList<T>.removeFirstCompat(): T =
+    first().also { remove(first()) }
