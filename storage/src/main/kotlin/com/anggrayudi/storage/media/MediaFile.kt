@@ -15,7 +15,7 @@ import androidx.annotation.UiThread
 import androidx.annotation.WorkerThread
 import androidx.core.content.FileProvider
 import androidx.documentfile.provider.DocumentFile
-import com.anggrayudi.storage.FileWrapper
+import com.anggrayudi.storage.file.FileWrapper
 import com.anggrayudi.storage.SimpleStorage
 import com.anggrayudi.storage.callback.SingleFileConflictCallback
 import com.anggrayudi.storage.extension.awaitUiResultWithPending
@@ -48,16 +48,16 @@ import com.anggrayudi.storage.file.openOutputStream
 import com.anggrayudi.storage.file.toSingleFileError
 import com.anggrayudi.storage.result.SingleFileError
 import com.anggrayudi.storage.result.SingleFileResult
-import kotlinx.coroutines.Job
-import kotlinx.coroutines.channels.ProducerScope
-import kotlinx.coroutines.flow.Flow
-import kotlinx.coroutines.flow.channelFlow
 import java.io.File
 import java.io.FileInputStream
 import java.io.FileOutputStream
 import java.io.IOException
 import java.io.InputStream
 import java.io.OutputStream
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.channels.ProducerScope
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.channelFlow
 
 typealias OnWriteAccessDenied = (mediaFile: MediaFile, sender: IntentSender) -> Unit
 
@@ -361,6 +361,7 @@ class MediaFile @JvmOverloads constructor(
     var isPending: Boolean
         @RequiresApi(Build.VERSION_CODES.Q)
         get() = getColumnInfoInt(MediaStore.MediaColumns.IS_PENDING) == 1
+
         @RequiresApi(Build.VERSION_CODES.Q)
         set(value) {
             val contentValues =
@@ -372,10 +373,7 @@ class MediaFile @JvmOverloads constructor(
             }
         }
 
-    private fun handleSecurityException(
-        e: SecurityException,
-        scope: ProducerScope<SingleFileResult>? = null
-    ) {
+    private fun handleSecurityException(e: SecurityException, scope: ProducerScope<SingleFileResult>? = null) {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q && e is RecoverableSecurityException) {
             onWriteAccessDenied?.invoke(this, e.userAction.actionIntent.intentSender)
         } else {

@@ -51,7 +51,7 @@ object SimpleStorage {
             context,
             Manifest.permission.WRITE_EXTERNAL_STORAGE
         ) == PackageManager.PERMISSION_GRANTED &&
-                hasStorageReadPermission(context)
+            hasStorageReadPermission(context)
     }
 
     /**
@@ -94,12 +94,12 @@ object SimpleStorage {
             fullPath,
             requiresWriteAccess
         ) != null &&
-                (
-                        Build.VERSION.SDK_INT > Build.VERSION_CODES.P ||
-                                requiresWriteAccess && hasStoragePermission(context) || !requiresWriteAccess && hasStorageReadPermission(
-                            context
-                        )
-                        )
+            (
+                Build.VERSION.SDK_INT > Build.VERSION_CODES.P ||
+                    requiresWriteAccess && hasStoragePermission(context) || !requiresWriteAccess && hasStorageReadPermission(
+                        context
+                    )
+                )
     }
 
     /**

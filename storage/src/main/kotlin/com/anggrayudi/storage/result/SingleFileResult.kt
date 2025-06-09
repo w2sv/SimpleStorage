@@ -1,7 +1,7 @@
 package com.anggrayudi.storage.result
 
 import androidx.annotation.FloatRange
-import com.anggrayudi.storage.FileWrapper
+import com.anggrayudi.storage.file.FileWrapper
 
 /**
  * Created on 7/6/24

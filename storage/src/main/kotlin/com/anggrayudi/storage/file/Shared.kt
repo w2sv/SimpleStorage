@@ -44,10 +44,7 @@ internal data class FileCreationInfo(
     val extension: String
 ) {
     companion object {
-        fun infer(
-            baseDirName: String,
-            mimeType: String?
-        ): FileCreationInfo {
+        fun infer(baseDirName: String, mimeType: String?): FileCreationInfo {
             val cleanName = baseDirName.removeForbiddenCharsFromFilename().trimFileSeparator()
             val subFolder = cleanName.substringBeforeLast('/', "")
             val filename = cleanName.substringAfterLast('/')

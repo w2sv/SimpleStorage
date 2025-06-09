@@ -358,7 +358,8 @@ fun File.moveTo(
     targetFolder: String,
     newFileNameInTarget: String? = null,
     conflictResolution: SingleFileConflictCallback.ConflictResolution = SingleFileConflictCallback.ConflictResolution.CREATE_NEW
-): File? = moveTo(context, File(targetFolder), newFileNameInTarget, conflictResolution)
+): File? =
+    moveTo(context, File(targetFolder), newFileNameInTarget, conflictResolution)
 
 /**
  * @param conflictResolution using [SingleFileConflictCallback.ConflictResolution.SKIP] will return `null`

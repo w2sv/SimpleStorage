@@ -17,7 +17,7 @@ import androidx.annotation.WorkerThread
 import androidx.core.content.FileProvider
 import androidx.core.content.MimeTypeFilter
 import androidx.documentfile.provider.DocumentFile
-import com.anggrayudi.storage.FileWrapper
+import com.anggrayudi.storage.file.FileWrapper
 import com.anggrayudi.storage.SimpleStorage
 import com.anggrayudi.storage.callback.MultipleFilesConflictCallback
 import com.anggrayudi.storage.callback.SingleFileConflictCallback
@@ -29,12 +29,12 @@ import com.anggrayudi.storage.extension.closeQuietly
 import com.anggrayudi.storage.extension.documentFileFromTreeUri
 import com.anggrayudi.storage.extension.getStorageId
 import com.anggrayudi.storage.extension.hasParent
+import com.anggrayudi.storage.extension.isDocumentTreeUri
 import com.anggrayudi.storage.extension.isDocumentsDocument
 import com.anggrayudi.storage.extension.isDownloadsDocument
 import com.anggrayudi.storage.extension.isExternalStorageDocument
 import com.anggrayudi.storage.extension.isMediaDocument
 import com.anggrayudi.storage.extension.isRawFile
-import com.anggrayudi.storage.extension.isDocumentTreeUri
 import com.anggrayudi.storage.extension.openInputStream
 import com.anggrayudi.storage.extension.openOutputStream
 import com.anggrayudi.storage.extension.parent
@@ -62,11 +62,6 @@ import com.anggrayudi.storage.result.ZipCompressionErrorCode
 import com.anggrayudi.storage.result.ZipCompressionResult
 import com.anggrayudi.storage.result.ZipDecompressionErrorCode
 import com.anggrayudi.storage.result.ZipDecompressionResult
-import kotlinx.coroutines.DelicateCoroutinesApi
-import kotlinx.coroutines.Job
-import kotlinx.coroutines.channels.ProducerScope
-import kotlinx.coroutines.flow.Flow
-import kotlinx.coroutines.flow.channelFlow
 import java.io.File
 import java.io.FileNotFoundException
 import java.io.IOException
@@ -77,6 +72,11 @@ import java.util.Date
 import java.util.zip.ZipEntry
 import java.util.zip.ZipInputStream
 import java.util.zip.ZipOutputStream
+import kotlinx.coroutines.DelicateCoroutinesApi
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.channels.ProducerScope
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.channelFlow
 
 typealias IsEnoughSpace = (freeSpace: Long, fileSize: Long) -> Boolean
 
@@ -99,10 +99,7 @@ internal fun enoughSpaceOnStorage(
     }
 }
 
-internal fun DocumentFile.hasEnoughSpace(
-    context: Context,
-    requiredSpace: Long
-): SingleFileError.NotEnoughSpaceOnTarget? =
+internal fun DocumentFile.hasEnoughSpace(context: Context, requiredSpace: Long): SingleFileError.NotEnoughSpaceOnTarget? =
     enoughSpaceOnStorage(context, getStorageId(context), requiredSpace)
 
 /**
@@ -208,10 +205,7 @@ fun DocumentFile.isEmpty(context: Context): Boolean {
  * ```
  */
 @WorkerThread
-fun DocumentFile.getProperties(
-    context: Context,
-    updateInterval: Long = 500
-): Flow<FilePropertiesResult> =
+fun DocumentFile.getProperties(context: Context, updateInterval: Long = 500): Flow<FilePropertiesResult> =
     channelFlow {
         when {
             !canRead() -> send(FilePropertiesResult.Error)
@@ -256,10 +250,7 @@ fun DocumentFile.getProperties(
     }
 
 @OptIn(DelicateCoroutinesApi::class)
-private fun <E> DocumentFile.walkFileTreeForInfo(
-    properties: FileProperties,
-    scope: ProducerScope<E>
-) {
+private fun <E> DocumentFile.walkFileTreeForInfo(properties: FileProperties, scope: ProducerScope<E>) {
     val list = listFiles()
     if (list.isEmpty()) {
         properties.emptyFolders++
@@ -382,10 +373,11 @@ fun DocumentFile.file(context: Context): File? {
 }
 
 fun DocumentFile.rawDocumentFile(context: Context): DocumentFile? =
-    if (isRawFile)
+    if (isRawFile) {
         this
-    else
+    } else {
         file(context)?.let { DocumentFile.fromFile(it) }
+    }
 
 fun DocumentFile.treeDocumentFile(context: Context): DocumentFile? =
     when {
@@ -560,9 +552,9 @@ fun DocumentFile.checkRequirements(
     considerRawFile: Boolean
 ) = canRead() &&
     (considerRawFile || isExternalStorageManager(context)) && shouldWritable(
-    context,
-    requiresWriteAccess
-)
+        context,
+        requiresWriteAccess
+    )
 
 /**
  * @return File path without storage ID. Returns empty `String` if:
@@ -912,7 +904,12 @@ fun DocumentFile.makeFile(
     if (!isWritableDir(context)) return null
 
     val info = FileCreationInfo.infer(name, mimeType)
-    val parent = if (info.subFolder.isEmpty()) this else makeFolder(context, info.subFolder, mode) ?: return null
+    val parent = if (info.subFolder.isEmpty()) {
+        this
+    } else {
+        makeFolder(context, info.subFolder, mode)
+            ?: return null
+    }
 
     val finalMode = child(context, info.fullFileName)
         ?.let {
@@ -935,11 +932,12 @@ fun DocumentFile.makeFile(
         parent.createFile(
             info.mimeType,
             info.baseFileName
-        )?.also {  // This throws java.lang.UnsupportedOperationException for SD card auto move destinations
-            if (info.mimeType == MimeType.BINARY_FILE && it.name != info.fullFileName) {
-                it.renameTo(info.fullFileName)
+        )
+            ?.also { // This throws java.lang.UnsupportedOperationException for SD card auto move destinations
+                if (info.mimeType == MimeType.BINARY_FILE && it.name != info.fullFileName) {
+                    it.renameTo(info.fullFileName)
+                }
             }
-        }
     } else {
         parent.createFile(info.mimeType, info.fullFileName)
     }
@@ -1091,10 +1089,7 @@ fun DocumentFile.toWritableDownloadsDocumentFile(context: Context): DocumentFile
 /**
  * @param names full file names, with their extension
  */
-fun DocumentFile.findFiles(
-    names: Array<String>,
-    documentType: DocumentFileType = DocumentFileType.ANY
-): List<DocumentFile> {
+fun DocumentFile.findFiles(names: Array<String>, documentType: DocumentFileType = DocumentFileType.ANY): List<DocumentFile> {
     val files = children.filter { it.name in names }
     return when (documentType) {
         DocumentFileType.FILE -> files.filter { it.isFile }
@@ -3380,7 +3375,7 @@ private fun DocumentFile.moveFileTo(
     }
 
     try {
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N && !isRawFile && writableTargetFolder.isTreeDocumentFile && sourceAndTargetHaveSameStorageId) {
+        if (!isRawFile && writableTargetFolder.isTreeDocumentFile && sourceAndTargetHaveSameStorageId) {
             val movedFileUri = parentFile?.uri?.let {
                 DocumentsContract.moveDocument(
                     context.contentResolver,
@@ -3426,10 +3421,6 @@ private fun DocumentFile.moveFileTo(
         }
 
         println("targetFile: ${targetFile.uri}")
-//        println("mediaUri: ${MediaStore.getMediaUri(
-//            context,
-//            targetFile.uri
-//        )}")
 
         val wrappedTargetFile = FileWrapper.Document(targetFile)
         copyFileStream(
