@@ -62,6 +62,11 @@ import com.anggrayudi.storage.result.ZipCompressionErrorCode
 import com.anggrayudi.storage.result.ZipCompressionResult
 import com.anggrayudi.storage.result.ZipDecompressionErrorCode
 import com.anggrayudi.storage.result.ZipDecompressionResult
+import kotlinx.coroutines.DelicateCoroutinesApi
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.channels.ProducerScope
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.channelFlow
 import java.io.File
 import java.io.FileNotFoundException
 import java.io.IOException
@@ -72,11 +77,6 @@ import java.util.Date
 import java.util.zip.ZipEntry
 import java.util.zip.ZipInputStream
 import java.util.zip.ZipOutputStream
-import kotlinx.coroutines.DelicateCoroutinesApi
-import kotlinx.coroutines.Job
-import kotlinx.coroutines.channels.ProducerScope
-import kotlinx.coroutines.flow.Flow
-import kotlinx.coroutines.flow.channelFlow
 
 typealias IsEnoughSpace = (freeSpace: Long, fileSize: Long) -> Boolean
 
@@ -543,9 +543,9 @@ fun DocumentFile.checkRequirements(
     considerRawFile: Boolean
 ) = canRead() &&
     (considerRawFile || isExternalStorageManager(context)) && shouldWritable(
-        context,
-        requiresWriteAccess
-    )
+    context,
+    requiresWriteAccess
+)
 
 /**
  * @return File path without storage ID. Returns empty `String` if:
@@ -1079,16 +1079,16 @@ fun DocumentFile.toWritableDownloadsDocumentFile(context: Context): DocumentFile
                     path.matches(Regex("/tree/downloads/document/ms[f,d]:\\d+"))
                 ) ||
                 Build.VERSION.SDK_INT < Build.VERSION_CODES.Q && (
-                    // If comes from SAF folder picker ACTION_OPEN_DOCUMENT_TREE,
-                    // e.g. content://com.android.providers.downloads.documents/tree/raw%3A%2Fstorage%2Femulated%2F0%2FDownload%2FDenai/document/raw%3A%2Fstorage%2Femulated%2F0%2FDownload%2FDenai
-                    path.startsWith("/tree/raw:") ||
-                        // If comes from findFile() or fromPublicFolder(),
-                        // e.g. content://com.android.providers.downloads.documents/tree/downloads/document/raw%3A%2Fstorage%2Femulated%2F0%2FDownload%2FDenai
-                        path.startsWith("/tree/downloads/document/raw:") ||
-                        // API 26 - 27 => content://com.android.providers.downloads.documents/document/22
-                        path.matches(Regex("/document/\\d+"))
-                    )
-            -> takeIf { it.isWritable(context) }
+                // If comes from SAF folder picker ACTION_OPEN_DOCUMENT_TREE,
+                // e.g. content://com.android.providers.downloads.documents/tree/raw%3A%2Fstorage%2Femulated%2F0%2FDownload%2FDenai/document/raw%3A%2Fstorage%2Femulated%2F0%2FDownload%2FDenai
+                path.startsWith("/tree/raw:") ||
+                    // If comes from findFile() or fromPublicFolder(),
+                    // e.g. content://com.android.providers.downloads.documents/tree/downloads/document/raw%3A%2Fstorage%2Femulated%2F0%2FDownload%2FDenai
+                    path.startsWith("/tree/downloads/document/raw:") ||
+                    // API 26 - 27 => content://com.android.providers.downloads.documents/document/22
+                    path.matches(Regex("/document/\\d+"))
+                )
+                -> takeIf { it.isWritable(context) }
 
             else -> null
         }
@@ -3701,16 +3701,15 @@ private fun DocumentFile.copyToFolder(
     }
 }
 
-internal fun Exception.toSingleFileError(): SingleFileResult.Error {
-    return SingleFileResult.Error(
+internal fun Exception.toSingleFileError(): SingleFileResult.Error =
+    SingleFileResult.Error(
         errorCode = when (this) {
             is SecurityException -> SingleFileError.StoragePermissionMissing()
             is InterruptedIOException, is InterruptedException -> SingleFileError.Cancelled
             else -> SingleFileError.UnknownIOError
         },
-        message = message
+        message = "Penis"
     )
-}
 
 private fun handleFileConflict(
     context: Context,
