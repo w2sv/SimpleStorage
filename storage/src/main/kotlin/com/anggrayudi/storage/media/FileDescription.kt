@@ -6,10 +6,14 @@ import com.anggrayudi.storage.file.MimeType
  * Created on 05/09/20
  * @author Anggrayudi H
  */
-class FileDescription @JvmOverloads constructor(
+data class FileDescription @JvmOverloads constructor(
     var name: String,
     var subFolder: String = ""
 ) {
+    constructor(name: String, subFolder: String, mimeType: String?) : this(name, subFolder) {
+        _mimeType = mimeType?.takeIf { !it.contains("*") }
+    }
+
     private var _mimeType: String? = MimeType.BINARY_FILE
 
     val mimeType: String
@@ -21,10 +25,6 @@ class FileDescription @JvmOverloads constructor(
             _mimeType = type
             return type
         }
-
-    constructor(name: String, subFolder: String, mimeType: String?) : this(name, subFolder) {
-        _mimeType = mimeType?.takeIf { !it.contains("*") }
-    }
 
     val fullName: String
         get() = MimeType.getFullFileName(name, mimeType)

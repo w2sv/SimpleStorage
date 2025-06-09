@@ -10,20 +10,25 @@ import android.system.Os
 import androidx.annotation.RestrictTo
 import androidx.annotation.WorkerThread
 import androidx.core.content.ContextCompat
+import androidx.core.net.toUri
 import androidx.documentfile.provider.DocumentFile
 import com.anggrayudi.storage.FileWrapper
 import com.anggrayudi.storage.SimpleStorage
-import com.anggrayudi.storage.extension.fromSingleUri
-import com.anggrayudi.storage.extension.fromTreeUri
+import com.anggrayudi.storage.extension.documentFileFromTreeUri
 import com.anggrayudi.storage.extension.getStorageId
 import com.anggrayudi.storage.extension.hasParent
 import com.anggrayudi.storage.extension.isDocumentsDocument
 import com.anggrayudi.storage.extension.isDownloadsDocument
 import com.anggrayudi.storage.extension.isExternalStorageDocument
 import com.anggrayudi.storage.extension.isRawFile
-import com.anggrayudi.storage.extension.isTreeDocumentFile
+import com.anggrayudi.storage.extension.isDocumentTreeUri
 import com.anggrayudi.storage.extension.replaceCompletely
 import com.anggrayudi.storage.extension.trimFileSeparator
+import com.anggrayudi.storage.file.DocumentFileCompat.buildAbsolutePath
+import com.anggrayudi.storage.file.DocumentFileCompat.buildSimplePath
+import com.anggrayudi.storage.file.DocumentFileCompat.getAccessibleAbsolutePaths
+import com.anggrayudi.storage.file.DocumentFileCompat.getAccessibleUris
+import com.anggrayudi.storage.file.DocumentFileCompat.getRootRawFile
 import com.anggrayudi.storage.file.StorageId.DATA
 import com.anggrayudi.storage.file.StorageId.HOME
 import com.anggrayudi.storage.file.StorageId.PRIMARY
@@ -136,10 +141,10 @@ object DocumentFileCompat {
                 uri.path ?: return null
             ).run { if (canRead()) DocumentFile.fromFile(this) else null }
 
-            uri.isTreeDocumentFile -> context.fromTreeUri(uri)
+            uri.isDocumentTreeUri -> context.documentFileFromTreeUri(uri)
                 ?.run { if (isDownloadsDocument) toWritableDownloadsDocumentFile(context) else this }
 
-            else -> context.fromSingleUri(uri)
+            else -> DocumentFile.fromSingleUri(context, uri)
         }
     }
 
@@ -174,7 +179,7 @@ object DocumentFileCompat {
             )
             if (file == null && storageId == PRIMARY && basePath.hasParent(Environment.DIRECTORY_DOWNLOADS)) {
                 val downloads =
-                    context.fromTreeUri(Uri.parse(DOWNLOADS_TREE_URI))?.takeIf { it.canRead() }
+                    context.documentFileFromTreeUri(DOWNLOADS_TREE_URI.toUri())?.takeIf { it.canRead() }
                         ?: return null
                 downloads.child(context, basePath.substringAfter('/', ""))?.takeIf {
                     documentType == DocumentFileType.ANY ||
@@ -289,7 +294,7 @@ object DocumentFileCompat {
         }
 
         val fileFromUriOrAbsolutePath: (String) -> DocumentFile? = { treeRootUri ->
-            val downloadFolder = context.fromTreeUri(Uri.parse(treeRootUri))
+            val downloadFolder = context.documentFileFromTreeUri(treeRootUri.toUri())
             if (downloadFolder?.canRead() == true) {
                 downloadFolder.child(context, subFile, requiresWriteAccess)
             } else {
@@ -341,7 +346,7 @@ object DocumentFileCompat {
         }
         val file = if (storageId == HOME) {
             if (Build.VERSION.SDK_INT == 29) {
-                context.fromTreeUri(createDocumentUri(PRIMARY))
+                context.documentFileFromTreeUri(createDocumentUri(PRIMARY))
             } else {
                 DocumentFile.fromFile(Environment.getExternalStorageDirectory())
             }
@@ -351,9 +356,9 @@ object DocumentFileCompat {
                 storageId,
                 requiresWriteAccess
             )?.let { DocumentFile.fromFile(it) }
-                ?: context.fromTreeUri(createDocumentUri(storageId))
+                ?: context.documentFileFromTreeUri(createDocumentUri(storageId))
         } else {
-            context.fromTreeUri(createDocumentUri(storageId))
+            context.documentFileFromTreeUri(createDocumentUri(storageId))
         }
         return file?.takeIf { it.canRead() && (requiresWriteAccess && it.isWritable(context) || !requiresWriteAccess) }
     }
@@ -389,15 +394,15 @@ object DocumentFileCompat {
             val cleanBasePath = getBasePath(context, fullPath)
             context.contentResolver.persistedUriPermissions
                 // For instance, content://com.android.externalstorage.documents/tree/primary%3AMusic
-                .filter { it.isReadPermission && it.isWritePermission && it.uri.isTreeDocumentFile }
+                .filter { it.isReadPermission && it.isWritePermission && it.uri.isDocumentTreeUri }
                 .forEach {
                     if (Build.VERSION.SDK_INT < 30) {
                         if (it.uri.isDownloadsDocument && fullPath.hasParent(PublicDirectory.DOWNLOADS.absolutePath)) {
-                            return context.fromTreeUri(Uri.parse(DOWNLOADS_TREE_URI))
+                            return context.documentFileFromTreeUri(DOWNLOADS_TREE_URI.toUri())
                         }
 
                         if (it.uri.isDocumentsDocument && fullPath.hasParent(PublicDirectory.DOCUMENTS.absolutePath)) {
-                            return context.fromTreeUri(Uri.parse(DOCUMENTS_TREE_URI))
+                            return context.documentFileFromTreeUri(DOCUMENTS_TREE_URI.toUri())
                         }
                     }
 
@@ -411,7 +416,7 @@ object DocumentFileCompat {
                                 )
                                 )
                         ) {
-                            return context.fromTreeUri(it.uri)
+                            return context.documentFileFromTreeUri(it.uri)
                         }
                     }
                 }
@@ -491,7 +496,7 @@ object DocumentFileCompat {
     @JvmOverloads
     @JvmStatic
     fun createDocumentUri(storageId: String, basePath: String = ""): Uri =
-        Uri.parse("content://$EXTERNAL_STORAGE_AUTHORITY/tree/" + Uri.encode("$storageId:$basePath"))
+        ("content://$EXTERNAL_STORAGE_AUTHORITY/tree/" + Uri.encode("$storageId:$basePath")).toUri()
 
     @JvmStatic
     fun isAccessGranted(context: Context, storageId: String): Boolean {
@@ -524,11 +529,11 @@ object DocumentFileCompat {
 
     @JvmStatic
     fun isDownloadsUriPermissionGranted(context: Context) =
-        isUriPermissionGranted(context, Uri.parse(DOWNLOADS_TREE_URI))
+        isUriPermissionGranted(context, DOWNLOADS_TREE_URI.toUri())
 
     @JvmStatic
     fun isDocumentsUriPermissionGranted(context: Context) =
-        isUriPermissionGranted(context, Uri.parse(DOCUMENTS_TREE_URI))
+        isUriPermissionGranted(context, DOCUMENTS_TREE_URI.toUri())
 
     private fun isUriPermissionGranted(context: Context, uri: Uri) =
         context.contentResolver.persistedUriPermissions.any {
@@ -579,7 +584,7 @@ object DocumentFileCompat {
         val storages = mutableMapOf<String, MutableSet<String>>()
         storages[PRIMARY] = HashSet()
         context.contentResolver.persistedUriPermissions
-            .filter { it.isReadPermission && it.isWritePermission && it.uri.isTreeDocumentFile }
+            .filter { it.isReadPermission && it.isWritePermission && it.uri.isDocumentTreeUri }
             .forEach {
                 if (it.uri.isDownloadsDocument) {
                     storages[PRIMARY]?.add(PublicDirectory.DOWNLOADS.absolutePath)
@@ -617,7 +622,7 @@ object DocumentFileCompat {
     @JvmStatic
     fun getAccessibleUris(context: Context): Map<String, List<Uri>> {
         return context.contentResolver.persistedUriPermissions
-            .filter { it.isReadPermission && it.isWritePermission && it.uri.isTreeDocumentFile }
+            .filter { it.isReadPermission && it.isWritePermission && it.uri.isDocumentTreeUri }
             .map { it.uri }
             .groupBy { it.getStorageId(context) }
             .filter { it.key.isNotEmpty() }
@@ -872,8 +877,7 @@ object DocumentFileCompat {
     }
 
     internal fun String.removeForbiddenCharsFromFilename(): String =
-        replace(":", "_")
-            .replaceCompletely("//", "/")
+        replace(":", "_").replaceCompletely("//", "/")
 
     private fun exploreFile(
         context: Context,
@@ -910,7 +914,7 @@ object DocumentFileCompat {
                     requiresWriteAccess,
                     considerRawFile
                 )?.child(context, basePath)
-                    ?: context.fromTreeUri(Uri.parse(DOCUMENTS_TREE_URI))
+                    ?: context.documentFileFromTreeUri(DOCUMENTS_TREE_URI.toUri())
                         ?.child(context, basePath.substringAfter(Environment.DIRECTORY_DOCUMENTS))
                     ?: return null
             } else if (Build.VERSION.SDK_INT < 30) {
@@ -930,7 +934,7 @@ object DocumentFileCompat {
                     parentTree.add(directorySequence.removeFirstCompat())
                     val folderTree = parentTree.joinToString(separator = "/")
                     try {
-                        grantedFile = context.fromTreeUri(createDocumentUri(storageId, folderTree))
+                        grantedFile = context.documentFileFromTreeUri(createDocumentUri(storageId, folderTree))
                         if (grantedFile?.canRead() == true) break
                     } catch (_: SecurityException) {
                         // ignore
@@ -940,7 +944,7 @@ object DocumentFileCompat {
                     grantedFile
                 } else {
                     val fileTree = directorySequence.joinToString(prefix = "/", separator = "/")
-                    context.fromTreeUri(Uri.parse(grantedFile.uri.toString() + Uri.encode(fileTree)))
+                    context.documentFileFromTreeUri((grantedFile.uri.toString() + Uri.encode(fileTree)).toUri())
                 }
             }
         return file?.takeIf {

@@ -1,7 +1,6 @@
 package com.anggrayudi.storage.media
 
 import android.annotation.SuppressLint
-import android.annotation.TargetApi
 import android.app.RecoverableSecurityException
 import android.content.ContentValues
 import android.content.Context
@@ -28,7 +27,6 @@ import com.anggrayudi.storage.extension.replaceCompletely
 import com.anggrayudi.storage.extension.sendAll
 import com.anggrayudi.storage.extension.sendAndClose
 import com.anggrayudi.storage.extension.startCoroutineTimer
-import com.anggrayudi.storage.extension.toDocumentFile
 import com.anggrayudi.storage.extension.toInt
 import com.anggrayudi.storage.extension.trimFileSeparator
 import com.anggrayudi.storage.file.CreateMode
@@ -40,30 +38,26 @@ import com.anggrayudi.storage.file.child
 import com.anggrayudi.storage.file.copyToFile
 import com.anggrayudi.storage.file.copyToFolder
 import com.anggrayudi.storage.file.forceDelete
-import com.anggrayudi.storage.file.fullName
 import com.anggrayudi.storage.file.getBasePath
 import com.anggrayudi.storage.file.getStorageId
 import com.anggrayudi.storage.file.hasEnoughSpace
-import com.anggrayudi.storage.file.isEmpty
 import com.anggrayudi.storage.file.makeFile
 import com.anggrayudi.storage.file.makeFolder
-import com.anggrayudi.storage.file.mimeType
 import com.anggrayudi.storage.file.moveFileTo
 import com.anggrayudi.storage.file.openOutputStream
-import com.anggrayudi.storage.file.toDocumentFile
 import com.anggrayudi.storage.file.toSingleFileError
 import com.anggrayudi.storage.result.SingleFileError
 import com.anggrayudi.storage.result.SingleFileResult
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.channels.ProducerScope
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.channelFlow
 import java.io.File
 import java.io.FileInputStream
 import java.io.FileOutputStream
 import java.io.IOException
 import java.io.InputStream
 import java.io.OutputStream
-import kotlinx.coroutines.Job
-import kotlinx.coroutines.channels.ProducerScope
-import kotlinx.coroutines.flow.Flow
-import kotlinx.coroutines.flow.channelFlow
 
 typealias OnWriteAccessDenied = (mediaFile: MediaFile, sender: IntentSender) -> Unit
 
@@ -105,7 +99,7 @@ class MediaFile @JvmOverloads constructor(
     @Suppress("DEPRECATION")
     val fullName: String
         get() = if (isRawFile) {
-            toRawFile()?.name.orEmpty()
+            file()?.name.orEmpty()
         } else {
             val mimeType = getColumnInfoString(MediaStore.MediaColumns.MIME_TYPE)
             val displayName = getColumnInfoString(MediaStore.MediaColumns.DISPLAY_NAME).orEmpty()
@@ -117,7 +111,7 @@ class MediaFile @JvmOverloads constructor(
      */
     @Suppress("DEPRECATION")
     val name: String?
-        get() = toRawFile()?.name ?: getColumnInfoString(MediaStore.MediaColumns.DISPLAY_NAME)
+        get() = file()?.name ?: getColumnInfoString(MediaStore.MediaColumns.DISPLAY_NAME)
 
     val baseName: String
         get() = MimeType.getBaseFileName(fullName)
@@ -130,7 +124,7 @@ class MediaFile @JvmOverloads constructor(
      */
     @Suppress("DEPRECATION")
     val type: String?
-        get() = toRawFile()?.name?.let {
+        get() = file()?.name?.let {
             MimeType.getMimeTypeFromExtension(
                 MimeType.getExtensionFromFileName(
                     it
@@ -148,7 +142,7 @@ class MediaFile @JvmOverloads constructor(
 
     @Suppress("DEPRECATION")
     var length: Long
-        get() = toRawFile()?.length() ?: getColumnInfoLong(MediaStore.MediaColumns.SIZE)
+        get() = file()?.length() ?: getColumnInfoLong(MediaStore.MediaColumns.SIZE)
         set(value) {
             try {
                 val contentValues =
@@ -172,7 +166,7 @@ class MediaFile @JvmOverloads constructor(
     val presentsInSafDatabase: Boolean
         get() = context.contentResolver.query(uri, null, null, null, null)?.use {
             it.count > 0
-        } ?: false
+        } == true
 
     /**
      * @see isEmpty
@@ -186,9 +180,8 @@ class MediaFile @JvmOverloads constructor(
     val isRawFile: Boolean
         get() = uri.isRawFile
 
-    @Suppress("DEPRECATION")
     val lastModified: Long
-        get() = toRawFile()?.lastModified()
+        get() = file()?.lastModified()
             ?: getColumnInfoLong(MediaStore.MediaColumns.DATE_MODIFIED)
 
     val owner: String?
@@ -209,13 +202,12 @@ class MediaFile @JvmOverloads constructor(
     /**
      * @return `null` in Android 10+ or if you try to read files from SD Card or you want to convert a file picked
      * from [Intent.ACTION_OPEN_DOCUMENT] or [Intent.ACTION_CREATE_DOCUMENT].
-     * @see toDocumentFile
+     * @see documentFile
      */
-    @Deprecated("Accessing files with java.io.File only works on app private directory since Android 10.")
-    fun toRawFile() =
+    fun file(): File? =
         if (isRawFile) uri.path?.let { File(it) } else null
 
-    fun toDocumentFile(): DocumentFile? =
+    fun documentFile(): DocumentFile? =
         absolutePath
             .let {
                 if (it.isEmpty()) {
@@ -228,55 +220,51 @@ class MediaFile @JvmOverloads constructor(
                 }
             }
 
-    @Suppress("DEPRECATION")
-    val absolutePath: String
-        @SuppressLint("InlinedApi")
-        get() {
-            val file = toRawFile()
-            return when {
-                file != null -> file.path
-                Build.VERSION.SDK_INT < Build.VERSION_CODES.Q -> {
-                    try {
-                        context.contentResolver.query(
-                            uri,
-                            arrayOf(MediaStore.MediaColumns.DATA),
-                            null,
-                            null,
-                            null
-                        )?.use { cursor ->
-                            if (cursor.moveToFirst()) {
-                                cursor.getString(MediaStore.MediaColumns.DATA)
-                            } else {
-                                ""
-                            }
-                        }.orEmpty()
-                    } catch (e: Exception) {
-                        ""
-                    }
-                }
-
-                else -> {
-                    val projection = arrayOf(
-                        MediaStore.MediaColumns.RELATIVE_PATH,
-                        MediaStore.MediaColumns.DISPLAY_NAME
-                    )
-                    context.contentResolver.query(uri, projection, null, null, null)
-                        ?.use { cursor ->
-                            if (cursor.moveToFirst()) {
-                                val relativePath =
-                                    cursor.getString(MediaStore.MediaColumns.RELATIVE_PATH)
-                                        ?: return ""
-                                val name = cursor.getString(MediaStore.MediaColumns.DISPLAY_NAME)
-                                "${SimpleStorage.externalStoragePath}/$relativePath/$name".trimEnd(
-                                    '/'
-                                ).replaceCompletely("//", "/")
-                            } else {
-                                ""
-                            }
-                        }.orEmpty()
+    val absolutePath: String by lazy {
+        val file = file()
+        when {
+            file != null -> file.path
+            Build.VERSION.SDK_INT < Build.VERSION_CODES.Q -> {
+                try {
+                    context.contentResolver.query(
+                        uri,
+                        arrayOf(MediaStore.MediaColumns.DATA),
+                        null,
+                        null,
+                        null
+                    )?.use { cursor ->
+                        if (cursor.moveToFirst()) {
+                            cursor.getString(MediaStore.MediaColumns.DATA)
+                        } else {
+                            ""
+                        }
+                    }.orEmpty()
+                } catch (_: Exception) {
+                    ""
                 }
             }
+
+            else -> {
+                val projection = arrayOf(
+                    MediaStore.MediaColumns.RELATIVE_PATH,
+                    MediaStore.MediaColumns.DISPLAY_NAME
+                )
+                context.contentResolver.query(uri, projection, null, null, null)
+                    ?.use { cursor ->
+                        if (cursor.moveToFirst()) {
+                            val relativePath =
+                                cursor.getString(MediaStore.MediaColumns.RELATIVE_PATH)
+                                    ?: return@lazy ""
+                            val name = cursor.getString(MediaStore.MediaColumns.DISPLAY_NAME)
+                            "${SimpleStorage.externalStoragePath}/$relativePath/$name".trimEnd('/')
+                                .replaceCompletely("//", "/")
+                        } else {
+                            ""
+                        }
+                    }.orEmpty()
+            }
         }
+    }
 
     val basePath: String
         get() = absolutePath.substringAfter(SimpleStorage.externalStoragePath).trimFileSeparator()
@@ -288,7 +276,7 @@ class MediaFile @JvmOverloads constructor(
     val relativePath: String
         @SuppressLint("InlinedApi")
         get() {
-            val file = toRawFile()
+            val file = file()
             return when {
                 file != null -> {
                     file.path.substringBeforeLast('/')
@@ -317,7 +305,7 @@ class MediaFile @JvmOverloads constructor(
                                 ""
                             }
                         }.orEmpty()
-                    } catch (e: Exception) {
+                    } catch (_: Exception) {
                         ""
                     }
                 }
@@ -336,9 +324,8 @@ class MediaFile @JvmOverloads constructor(
             }
         }
 
-    @Suppress("DEPRECATION")
     fun delete(): Boolean {
-        val file = toRawFile()
+        val file = file()
         return if (file != null) {
             file.delete() || !file.exists()
         } else {
@@ -355,9 +342,8 @@ class MediaFile @JvmOverloads constructor(
      * Please note that this function does not move file if you input `newName` as `Download/filename.mp4`.
      * If you want to move media files, please use [moveFileTo] instead.
      */
-    @Suppress("DEPRECATION")
     fun renameTo(newName: String): Boolean {
-        val file = toRawFile()
+        val file = file()
         val contentValues =
             ContentValues(1).apply { put(MediaStore.MediaColumns.DISPLAY_NAME, newName) }
         return if (file != null) {
@@ -375,7 +361,6 @@ class MediaFile @JvmOverloads constructor(
     var isPending: Boolean
         @RequiresApi(Build.VERSION_CODES.Q)
         get() = getColumnInfoInt(MediaStore.MediaColumns.IS_PENDING) == 1
-
         @RequiresApi(Build.VERSION_CODES.Q)
         set(value) {
             val contentValues =
@@ -387,7 +372,10 @@ class MediaFile @JvmOverloads constructor(
             }
         }
 
-    private fun handleSecurityException(e: SecurityException, scope: ProducerScope<SingleFileResult>? = null) {
+    private fun handleSecurityException(
+        e: SecurityException,
+        scope: ProducerScope<SingleFileResult>? = null
+    ) {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q && e is RecoverableSecurityException) {
             onWriteAccessDenied?.invoke(this, e.userAction.actionIntent.intentSender)
         } else {
@@ -415,38 +403,36 @@ class MediaFile @JvmOverloads constructor(
     /**
      * @param append if `false` and the file already exists, it will recreate the file.
      */
-    @Suppress("DEPRECATION")
     @WorkerThread
     @JvmOverloads
     fun openOutputStream(append: Boolean = true): OutputStream? {
         return try {
-            val file = toRawFile()
+            val file = file()
             if (file != null) {
                 FileOutputStream(file, append)
             } else {
                 context.contentResolver.openOutputStream(uri, if (append) "wa" else "w")
             }
-        } catch (e: IOException) {
+        } catch (_: IOException) {
             null
         }
     }
 
-    @Suppress("DEPRECATION")
     @WorkerThread
     fun openInputStream(): InputStream? {
         return try {
-            val file = toRawFile()
+            val file = file()
             if (file != null) {
                 FileInputStream(file)
             } else {
                 context.contentResolver.openInputStream(uri)
             }
-        } catch (e: IOException) {
+        } catch (_: IOException) {
             null
         }
     }
 
-    @TargetApi(Build.VERSION_CODES.Q)
+    @RequiresApi(Build.VERSION_CODES.Q)
     fun moveTo(relativePath: String): Boolean {
         val contentValues =
             ContentValues(1).apply { put(MediaStore.MediaColumns.RELATIVE_PATH, relativePath) }
@@ -467,15 +453,15 @@ class MediaFile @JvmOverloads constructor(
         onConflict: SingleFileConflictCallback<DocumentFile>
     ): Flow<SingleFileResult> =
         channelFlow {
-            toDocumentFile()?.let {
+            documentFile()?.let {
                 sendAll(
                     it.moveFileTo(
-                        context,
-                        targetFolder,
-                        fileDescription,
-                        updateInterval,
-                        checkIfEnoughSpaceOnTarget,
-                        onConflict
+                        context = context,
+                        targetFolder = targetFolder,
+                        fileDescription = fileDescription,
+                        updateInterval = updateInterval,
+                        checkIfEnoughSpaceOnTarget = checkIfEnoughSpaceOnTarget,
+                        onConflict = onConflict
                     )
                 )
                 return@channelFlow
@@ -493,7 +479,7 @@ class MediaFile @JvmOverloads constructor(
             } else {
                 val directory = targetFolder.makeFolder(
                     context,
-                    fileDescription?.subFolder.orEmpty(),
+                    fileDescription.subFolder,
                     CreateMode.REUSE
                 )
                 if (directory == null) {
@@ -529,7 +515,14 @@ class MediaFile @JvmOverloads constructor(
                     return@channelFlow
                 }
                 createFileStreams(targetFile, this) { inputStream, outputStream ->
-                    copyFileStream(inputStream, outputStream, targetFile, updateInterval, true, this)
+                    copyFileStream(
+                        inputStream,
+                        outputStream,
+                        targetFile,
+                        updateInterval,
+                        true,
+                        this
+                    )
                 }
             } catch (e: SecurityException) {
                 handleSecurityException(e, this)
@@ -555,7 +548,7 @@ class MediaFile @JvmOverloads constructor(
                 }
             }
 
-            toDocumentFile()?.let { documentFile ->
+            documentFile()?.let { documentFile ->
                 sendAll(
                     documentFile.copyToFolder(
                         context = context,
@@ -575,7 +568,7 @@ class MediaFile @JvmOverloads constructor(
             } else {
                 targetFolder.makeFolder(
                     context = context,
-                    name = fileDescription?.subFolder.orEmpty(),
+                    name = fileDescription.subFolder,
                     mode = CreateMode.REUSE
                 )
                     .also {
@@ -613,7 +606,14 @@ class MediaFile @JvmOverloads constructor(
                         }
                     }!!
                 createFileStreams(targetFile, this) { inputStream, outputStream ->
-                    copyFileStream(inputStream, outputStream, targetFile, updateInterval, false, this)
+                    copyFileStream(
+                        inputStream,
+                        outputStream,
+                        targetFile,
+                        updateInterval,
+                        false,
+                        this
+                    )
                 }
             } catch (e: SecurityException) {
                 handleSecurityException(e, this)
@@ -639,7 +639,7 @@ class MediaFile @JvmOverloads constructor(
                 }
             }
 
-            toDocumentFile()?.let { documentFile ->
+            documentFile()?.let { documentFile ->
                 documentFile.copyToFile(
                     context = context,
                     targetFile = targetFile,
@@ -654,7 +654,14 @@ class MediaFile @JvmOverloads constructor(
 
             try {
                 createFileStreams(targetFile, this) { inputStream, outputStream ->
-                    copyFileStream(inputStream, outputStream, targetFile, updateInterval, false, this)
+                    copyFileStream(
+                        inputStream,
+                        outputStream,
+                        targetFile,
+                        updateInterval,
+                        false,
+                        this
+                    )
                 }
             } catch (e: SecurityException) {
                 handleSecurityException(e, this)
