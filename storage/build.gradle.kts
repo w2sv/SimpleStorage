@@ -57,11 +57,8 @@ publishing {
 dependencies {
     api(libs.androidx.documentfile)
     implementation(libs.androidx.appcompat)
-    implementation(libs.androidx.activity)
     implementation(libs.androidx.core.ktx)
-    implementation(libs.androidx.fragment)
     implementation(libs.kotlinx.coroutines.android)
-    implementation(libs.androidx.lifecycle.viewmodel.ktx)
 
     testImplementation(libs.junit.jupiter.engine)
     testImplementation(libs.mockk)

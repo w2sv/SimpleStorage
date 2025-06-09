@@ -1,7 +1,6 @@
 package com.anggrayudi.storage.file
 
 import android.net.Uri
-import com.anggrayudi.storage.SimpleStorage
 import com.anggrayudi.storage.extension.getStorageId
 
 /**
@@ -11,7 +10,7 @@ import com.anggrayudi.storage.extension.getStorageId
 enum class StorageType {
     /**
      * Equals primary storage.
-     * @see [SimpleStorage.externalStoragePath]
+     * @see [com.anggrayudi.storage.SimpleStorage.externalStoragePath]
      */
     EXTERNAL,
     DATA,
@@ -19,9 +18,6 @@ enum class StorageType {
     UNKNOWN;
 
     val isSdCard: Boolean get() = this == SD_CARD
-
-    fun isExpected(actualStorageType: StorageType) =
-        this == UNKNOWN || this == actualStorageType
 
     companion object {
 

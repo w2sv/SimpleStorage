@@ -1,5 +1,4 @@
 [versions]
-activity = "1.10.1"
 android-gradle-plugin = "8.10.1"
 appcompat = "1.7.1"
 core-ktx = "1.16.0"
@@ -7,11 +6,9 @@ coroutines = "1.10.2"
 documentfile = "1.1.0"
 # @keep
 dokka = "1.9.20"
-fragment = "1.8.8"
 junit = "5.13.1"
 kotlin = "2.1.21"
 ktlint = "12.3.0"
-lifecycle-viewmodel-ktx = "2.9.1"
 # @keep
 maven-publish-plugin = "0.28.0"
 mockito-all = "1.10.19"
@@ -26,12 +23,9 @@ versionCatalogUpdate = "1.0.0"
 versions = "0.52.0"
 
 [libraries]
-androidx-activity = { module = "androidx.activity:activity", version.ref = "activity" }
 androidx-appcompat = { module = "androidx.appcompat:appcompat", version.ref = "appcompat" }
 androidx-core-ktx = { module = "androidx.core:core-ktx", version.ref = "core-ktx" }
 androidx-documentfile = { module = "androidx.documentfile:documentfile", version.ref = "documentfile" }
-androidx-fragment = { module = "androidx.fragment:fragment", version.ref = "fragment" }
-androidx-lifecycle-viewmodel-ktx = { module = "androidx.lifecycle:lifecycle-viewmodel-ktx", version.ref = "lifecycle-viewmodel-ktx" }
 junit-jupiter-engine = { module = "org.junit.jupiter:junit-jupiter-engine", version.ref = "junit" }
 kotlinx-coroutines-android = { module = "org.jetbrains.kotlinx:kotlinx-coroutines-android", version.ref = "coroutines" }
 mockito-all = { module = "org.mockito:mockito-all", version.ref = "mockito-all" }
