@@ -17,7 +17,6 @@ import androidx.annotation.WorkerThread
 import androidx.core.content.FileProvider
 import androidx.core.content.MimeTypeFilter
 import androidx.documentfile.provider.DocumentFile
-import com.anggrayudi.storage.file.FileWrapper
 import com.anggrayudi.storage.SimpleStorage
 import com.anggrayudi.storage.callback.MultipleFilesConflictCallback
 import com.anggrayudi.storage.callback.SingleFileConflictCallback

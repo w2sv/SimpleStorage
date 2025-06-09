@@ -12,7 +12,6 @@ import androidx.annotation.WorkerThread
 import androidx.core.content.ContextCompat
 import androidx.core.net.toUri
 import androidx.documentfile.provider.DocumentFile
-import com.anggrayudi.storage.file.FileWrapper
 import com.anggrayudi.storage.SimpleStorage
 import com.anggrayudi.storage.extension.documentFileFromTreeUri
 import com.anggrayudi.storage.extension.getStorageId

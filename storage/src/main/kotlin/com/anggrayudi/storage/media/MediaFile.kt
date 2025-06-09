@@ -15,7 +15,6 @@ import androidx.annotation.UiThread
 import androidx.annotation.WorkerThread
 import androidx.core.content.FileProvider
 import androidx.documentfile.provider.DocumentFile
-import com.anggrayudi.storage.file.FileWrapper
 import com.anggrayudi.storage.SimpleStorage
 import com.anggrayudi.storage.callback.SingleFileConflictCallback
 import com.anggrayudi.storage.extension.awaitUiResultWithPending
@@ -33,6 +32,7 @@ import com.anggrayudi.storage.file.CreateMode
 import com.anggrayudi.storage.file.DocumentFileCompat
 import com.anggrayudi.storage.file.DocumentFileCompat.removeForbiddenCharsFromFilename
 import com.anggrayudi.storage.file.FileSize
+import com.anggrayudi.storage.file.FileWrapper
 import com.anggrayudi.storage.file.MimeType
 import com.anggrayudi.storage.file.child
 import com.anggrayudi.storage.file.copyToFile
